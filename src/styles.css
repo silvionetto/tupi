@@ -36,6 +36,25 @@ input {
   color: inherit;
 }
 
+textarea {
+  width: 100%;
+  min-height: 7rem;
+  margin-top: 0.35rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  background: rgba(15, 23, 42, 0.9);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+button.secondary {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+}
+
 .shell {
   max-width: 960px;
   margin: 0 auto;
@@ -102,6 +121,9 @@ dd {
 }
 
 .actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   margin-top: 1.25rem;
 }
 
@@ -120,16 +142,8 @@ dd {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-.checkbox {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-top: 1.8rem;
-}
-
-.checkbox input {
-  width: auto;
-  margin-top: 0;
+.form-span-full {
+  grid-column: 1 / -1;
 }
 
 .profile-list {
@@ -158,10 +172,21 @@ dd {
   color: #7dd3fc;
 }
 
+.field-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
 .marketplace-repository {
   margin: 0.85rem 0 0;
   color: #cbd5e1;
   word-break: break-word;
+}
+
+.profile-card p {
+  margin: 0.85rem 0 0;
+  color: #cbd5e1;
 }
 
 .status {

@@ -19,6 +19,8 @@ This repository now contains the first desktop-app scaffold for the MVP:
 
 The current implementation focuses on the trust-model foundation: catalog loading and validation, local cache persistence, profile storage, and a React frontend wired to the Tauri commands. The remaining core step is hardening the refresh path around repository verification in a real Tupi catalog source.
 
+Project profiles are stored locally in the existing embedded SQLite database at `.tupi/state.sqlite`. The current panel focuses on project metadata: a database-backed ID, a display name prefilled from the repository name, and an optional description.
+
 ### Local refresh configuration
 
 - `TUPI_CATALOG_REPOSITORY`: optional git repository URL used for trusted catalog refreshes

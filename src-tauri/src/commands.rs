@@ -1,4 +1,4 @@
-use crate::profile::Profile;
+use crate::profile::{Profile, ProjectProfileDefaults};
 use crate::state::{AppState, CatalogState, MarketplaceOption, RefreshRecord};
 use tauri::State;
 
@@ -32,10 +32,15 @@ pub fn list_profiles(state: State<'_, AppState>) -> std::result::Result<Vec<Prof
 }
 
 #[tauri::command]
+pub fn get_project_profile_defaults(state: State<'_, AppState>) -> ProjectProfileDefaults {
+    state.project_profile_defaults()
+}
+
+#[tauri::command]
 pub fn upsert_profile(
     state: State<'_, AppState>,
     profile: Profile,
-) -> std::result::Result<(), String> {
+) -> std::result::Result<Profile, String> {
     state.upsert_profile(profile).map_err(|err| err.to_string())
 }
 

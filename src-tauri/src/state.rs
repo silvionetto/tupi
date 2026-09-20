@@ -1,6 +1,6 @@
 use crate::catalog::{load_catalog_from_str, summarize, CatalogSummary, Marketplace, TrustedCatalog};
 use crate::error::Result;
-use crate::profile::Profile;
+use crate::profile::{Profile, ProjectProfileDefaults};
 use crate::trust::TrustStatus;
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -263,7 +263,14 @@ impl AppState {
         Ok(profiles)
     }
 
-    pub fn upsert_profile(&self, profile: Profile) -> Result<()> {
+    pub fn project_profile_defaults(&self) -> ProjectProfileDefaults {
+        ProjectProfileDefaults {
+            display_name: self.workspace_display_name(),
+        }
+    }
+
+    pub fn upsert_profile(&self, profile: Profile) -> Result<Profile> {
+        let profile = self.normalize_profile(profile)?;
         let connection = self.open()?;
         connection.execute(
             r#"
@@ -271,9 +278,9 @@ impl AppState {
             VALUES (?1, ?2)
             ON CONFLICT(id) DO UPDATE SET profile_json = excluded.profile_json
             "#,
-            params![profile.id, serde_json::to_string(&profile)?],
+            params![profile.id.clone(), serde_json::to_string(&profile)?],
         )?;
-        Ok(())
+        Ok(profile)
     }
 
     pub fn delete_profile(&self, profile_id: &str) -> Result<()> {
@@ -326,6 +333,75 @@ impl AppState {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| "main".to_string())
+    }
+
+    fn normalize_profile(&self, profile: Profile) -> Result<Profile> {
+        let id = profile.id.trim().to_string();
+        let name = profile.name.trim().to_string();
+        if name.is_empty() {
+            return Err(crate::error::TupiError::ProfileValidation(
+                "project display name is required".into(),
+            ));
+        }
+
+        Ok(Profile {
+            id: if id.is_empty() {
+                self.generate_profile_id()?
+            } else {
+                id
+            },
+            name,
+            description: Self::normalize_optional_text(profile.description),
+            enabled: profile.enabled,
+            version: Self::normalize_optional_text(profile.version),
+            catalog_revision: Self::normalize_optional_text(profile.catalog_revision),
+            selected_assets: profile
+                .selected_assets
+                .into_iter()
+                .map(|asset| asset.trim().to_string())
+                .filter(|asset| !asset.is_empty())
+                .collect(),
+        })
+    }
+
+    fn generate_profile_id(&self) -> Result<String> {
+        let connection = self.open()?;
+
+        loop {
+            let candidate = connection.query_row(
+                "SELECT lower(hex(randomblob(8)))",
+                [],
+                |row| row.get::<_, String>(0),
+            )?;
+            let exists = connection
+                .query_row(
+                    "SELECT 1 FROM profiles WHERE id = ?1",
+                    params![candidate.as_str()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()?;
+
+            if exists.is_none() {
+                return Ok(candidate);
+            }
+        }
+    }
+
+    fn normalize_optional_text(value: Option<String>) -> Option<String> {
+        value
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    }
+
+    fn workspace_display_name(&self) -> String {
+        self.catalog_path
+            .parent()
+            .and_then(Path::parent)
+            .and_then(Path::file_name)
+            .and_then(|value| value.to_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "Project".to_string())
     }
 
     fn read_active_catalog_contents(&self) -> Result<String> {
@@ -666,7 +742,7 @@ impl AppState {
 mod tests {
     use super::AppState;
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -721,6 +797,78 @@ mod tests {
         assert_eq!(resolved.as_deref(), Some(root.as_path()));
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn upsert_profile_generates_database_backed_id_and_optional_description() {
+        let root = unique_temp_dir("profile-upsert");
+        let state = make_test_state(&root);
+
+        let saved = state
+            .upsert_profile(crate::profile::Profile {
+                id: String::new(),
+                name: String::from(" myProject "),
+                description: Some(String::from("  Example repo  ")),
+                enabled: true,
+                version: Some(String::from("1")),
+                catalog_revision: Some(String::from("catalog-1")),
+                selected_assets: vec![String::from(" reviewer "), String::new()],
+            })
+            .unwrap();
+
+        assert!(!saved.id.is_empty());
+        assert_eq!(saved.name, "myProject");
+        assert_eq!(saved.description.as_deref(), Some("Example repo"));
+        assert_eq!(saved.selected_assets, vec![String::from("reviewer")]);
+
+        let profiles = state.read_profiles().unwrap();
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].id, saved.id);
+        assert_eq!(profiles[0].description.as_deref(), Some("Example repo"));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reads_legacy_profiles_without_description_field() {
+        let root = unique_temp_dir("legacy-profile");
+        let state = make_test_state(&root);
+        let connection = state.open().unwrap();
+        connection
+            .execute(
+                "INSERT INTO profiles (id, profile_json) VALUES (?1, ?2)",
+                rusqlite::params![
+                    "legacy-profile",
+                    r#"{"id":"legacy-profile","name":"Legacy Project","enabled":true,"version":"1","catalogRevision":"catalog-1","selected_assets":["reviewer"]}"#
+                ],
+            )
+            .unwrap();
+
+        let profiles = state.read_profiles().unwrap();
+
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].id, "legacy-profile");
+        assert_eq!(profiles[0].description, None);
+
+        drop(connection);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    fn make_test_state(root: &Path) -> AppState {
+        let state_dir = root.join(".tupi");
+        let cache_dir = state_dir.join("catalog-cache");
+        let catalog_dir = root.join("catalog");
+        fs::create_dir_all(&cache_dir).unwrap();
+        fs::create_dir_all(&catalog_dir).unwrap();
+        fs::write(catalog_dir.join("trusted-assets.yaml"), "version: 1\ncatalogRevision: test\nmarketplaces: []\n").unwrap();
+
+        let state = AppState {
+            db_path: state_dir.join("state.sqlite"),
+            catalog_path: catalog_dir.join("trusted-assets.yaml"),
+            cache_dir,
+        };
+        state.initialize().unwrap();
+        state
     }
 
     fn unique_temp_dir(name: &str) -> PathBuf {

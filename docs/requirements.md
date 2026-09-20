@@ -210,6 +210,7 @@ A profile describes which catalog-approved assets a project wants to use. It
 may contain:
 
 - a profile ID and display name;
+- an optional description for the project;
 - selected marketplace and asset IDs;
 - project-specific configuration values;
 - enabled/disabled state;

@@ -26,6 +26,21 @@ type MarketplaceOption = {
 type Profile = {
   id: string;
   name: string;
+  description: string | null;
+  enabled: boolean;
+  version: string | null;
+  catalogRevision: string | null;
+  selected_assets: string[];
+};
+
+type ProjectProfileDefaults = {
+  displayName: string;
+};
+
+type ProfileFormState = {
+  id: string;
+  name: string;
+  description: string;
   enabled: boolean;
   version: string | null;
   catalogRevision: string | null;
@@ -56,6 +71,42 @@ const fallbackMarketplaces: MarketplaceOption[] = [
   },
 ];
 
+const fallbackProjectDefaults: ProjectProfileDefaults = {
+  displayName: 'Project',
+};
+
+function normalizeOptionalText(value: string) {
+  const normalized = value.trim();
+  return normalized.length === 0 ? null : normalized;
+}
+
+function createProfileForm(
+  displayName: string,
+  catalogRevision: string | null,
+): ProfileFormState {
+  return {
+    id: '',
+    name: displayName,
+    description: '',
+    enabled: true,
+    version: '1',
+    catalogRevision,
+    selected_assets: [],
+  };
+}
+
+function profileToForm(profile: Profile): ProfileFormState {
+  return {
+    id: profile.id,
+    name: profile.name,
+    description: profile.description ?? '',
+    enabled: profile.enabled,
+    version: profile.version,
+    catalogRevision: profile.catalogRevision,
+    selected_assets: profile.selected_assets,
+  };
+}
+
 export default function App() {
   const [summary, setSummary] = useState<CatalogSummary>(fallbackSummary);
   const [status, setStatus] = useState('Trusted marketplaces are ready.');
@@ -63,12 +114,12 @@ export default function App() {
   const [marketplaces, setMarketplaces] = useState<MarketplaceOption[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentView, setCurrentView] = useState<'home' | 'about'>('home');
-  const [profileForm, setProfileForm] = useState({
-    id: 'project-a',
-    name: 'Project A',
-    enabled: true,
-    assets: 'code-reviewer',
-  });
+  const [defaultProjectDisplayName, setDefaultProjectDisplayName] =
+    useState(fallbackProjectDefaults.displayName);
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [profileForm, setProfileForm] = useState<ProfileFormState>(() =>
+    createProfileForm(fallbackProjectDefaults.displayName, fallbackSummary.catalogRevision),
+  );
 
   async function loadMarketplaces() {
     try {
@@ -88,14 +139,43 @@ export default function App() {
     }
   }
 
+  async function loadProjectProfileDefaults(catalogRevision: string | null) {
+    try {
+      const defaults = await invoke<ProjectProfileDefaults>('get_project_profile_defaults');
+      setDefaultProjectDisplayName(defaults.displayName);
+      setProfileForm(createProfileForm(defaults.displayName, catalogRevision));
+    } catch {
+      setDefaultProjectDisplayName(fallbackProjectDefaults.displayName);
+      setProfileForm(createProfileForm(fallbackProjectDefaults.displayName, catalogRevision));
+    }
+  }
+
+  function currentCatalogRevision() {
+    return details?.summary.catalogRevision ?? summary.catalogRevision;
+  }
+
+  function startNewProfile() {
+    setEditingProfileId(null);
+    setProfileForm(createProfileForm(defaultProjectDisplayName, currentCatalogRevision()));
+    setStatus('Ready to create a new project.');
+  }
+
+  function editProfile(profile: Profile) {
+    setEditingProfileId(profile.id);
+    setProfileForm(profileToForm(profile));
+    setStatus(`Editing project ${profile.id}.`);
+  }
+
   useEffect(() => {
     const load = async () => {
       let runningInsideTauri = true;
+      let catalogRevision = fallbackSummary.catalogRevision;
 
       try {
         const state = await invoke<CatalogState>('get_catalog_state');
         setSummary(state.summary);
         setDetails(state);
+        catalogRevision = state.summary.catalogRevision;
         setStatus(
           state.stale ? 'Showing the bundled trusted catalog.' : 'Trusted marketplaces are ready.',
         );
@@ -109,7 +189,14 @@ export default function App() {
       }
 
       if (runningInsideTauri) {
-        await Promise.all([loadMarketplaces(), loadProfiles()]);
+        await Promise.all([
+          loadMarketplaces(),
+          loadProfiles(),
+          loadProjectProfileDefaults(catalogRevision),
+        ]);
+      } else {
+        setDefaultProjectDisplayName(fallbackProjectDefaults.displayName);
+        setProfileForm(createProfileForm(fallbackProjectDefaults.displayName, catalogRevision));
       }
     };
 
@@ -118,26 +205,29 @@ export default function App() {
 
   async function saveProfile() {
     const profile: Profile = {
-      id: profileForm.id.trim(),
+      id: profileForm.id,
       name: profileForm.name.trim(),
+      description: normalizeOptionalText(profileForm.description),
       enabled: profileForm.enabled,
-      version: '1',
-      catalogRevision: details?.summary.catalogRevision ?? summary.catalogRevision,
-      selected_assets: profileForm.assets
-        .split(',')
-        .map((asset) => asset.trim())
-        .filter(Boolean),
+      version: profileForm.version,
+      catalogRevision: profileForm.catalogRevision ?? currentCatalogRevision(),
+      selected_assets: profileForm.selected_assets,
     };
 
-    await invoke<void>('upsert_profile', { profile });
+    const savedProfile = await invoke<Profile>('upsert_profile', { profile });
     await loadProfiles();
-    setStatus(`Saved profile ${profile.id}.`);
+    setEditingProfileId(savedProfile.id);
+    setProfileForm(profileToForm(savedProfile));
+    setStatus(`Saved project ${savedProfile.id}.`);
   }
 
   async function removeProfile(id: string) {
     await invoke<void>('delete_profile', { profileId: id });
     await loadProfiles();
-    setStatus(`Deleted profile ${id}.`);
+    if (editingProfileId === id) {
+      startNewProfile();
+    }
+    setStatus(`Deleted project ${id}.`);
   }
 
   return (
@@ -187,13 +277,19 @@ export default function App() {
           </section>
           <section className="panel">
             <h2>Project profiles</h2>
+            <p className="lede">
+              Each project keeps a database-backed ID, a repo-based display name, and an optional
+              description.
+            </p>
             <div className="form-grid">
               <label>
-                Profile ID
+                Project ID
                 <input
+                  readOnly
                   value={profileForm.id}
-                  onChange={(event) => setProfileForm({ ...profileForm, id: event.target.value })}
+                  placeholder="Generated when saved"
                 />
+                <p className="field-hint">Generated by the embedded database when you save.</p>
               </label>
               <label>
                 Display name
@@ -202,48 +298,42 @@ export default function App() {
                   onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
                 />
               </label>
-              <label>
-                Approved asset IDs
-                <input
-                  value={profileForm.assets}
+              <label className="form-span-full">
+                Description
+                <textarea
+                  rows={4}
+                  value={profileForm.description}
+                  placeholder="Describe the project"
                   onChange={(event) =>
-                    setProfileForm({ ...profileForm, assets: event.target.value })
+                    setProfileForm({ ...profileForm, description: event.target.value })
                   }
                 />
-              </label>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={profileForm.enabled}
-                  onChange={(event) =>
-                    setProfileForm({ ...profileForm, enabled: event.target.checked })
-                  }
-                />
-                Enabled
               </label>
             </div>
             <div className="actions">
               <button type="button" onClick={() => void saveProfile()}>
-                Save profile
+                {editingProfileId === null ? 'Create project' : 'Save project'}
+              </button>
+              <button type="button" className="secondary" onClick={startNewProfile}>
+                {editingProfileId === null ? 'Reset form' : 'New project'}
               </button>
             </div>
             <p className="status">{status}</p>
             <div className="profile-list">
               {profiles.length === 0 ? (
-                <p className="status">No profiles saved yet.</p>
+                <p className="status">No project profiles saved yet.</p>
               ) : (
                 profiles.map((profile) => (
                   <article key={profile.id} className="profile-card">
                     <header>
                       <strong>{profile.name}</strong>
-                      <span>{profile.enabled ? 'Enabled' : 'Disabled'}</span>
-                    </header>
-                    <p>
                       <code>{profile.id}</code>
-                    </p>
-                    <p>Catalog revision: {profile.catalogRevision ?? 'unresolved'}</p>
-                    <p>Assets: {profile.selected_assets.join(', ') || 'none'}</p>
+                    </header>
+                    <p>{profile.description ?? 'No description yet.'}</p>
                     <div className="actions">
+                      <button type="button" className="secondary" onClick={() => editProfile(profile)}>
+                        Edit
+                      </button>
                       <button type="button" onClick={() => void removeProfile(profile.id)}>
                         Delete
                       </button>

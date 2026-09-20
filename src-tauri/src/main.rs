@@ -20,6 +20,7 @@ fn main() {
       commands::refresh_catalog,
       commands::list_marketplaces,
       commands::list_profiles,
+      commands::get_project_profile_defaults,
       commands::upsert_profile,
       commands::delete_profile
     ])

@@ -8,6 +8,8 @@ pub enum TupiError {
     CatalogParse(String),
     #[error("catalog validation failed: {0}")]
     CatalogValidation(String),
+    #[error("profile validation failed: {0}")]
+    ProfileValidation(String),
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
     #[error("serialization error: {0}")]
@@ -17,4 +19,3 @@ pub enum TupiError {
 }
 
 pub type Result<T> = std::result::Result<T, TupiError>;
-

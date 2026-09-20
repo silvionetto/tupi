@@ -5,6 +5,8 @@ pub struct Profile {
     pub id: String,
     pub name: String,
     #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
     pub enabled: bool,
     #[serde(default)]
     pub version: Option<String>,
@@ -14,3 +16,8 @@ pub struct Profile {
     pub selected_assets: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectProfileDefaults {
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+}
