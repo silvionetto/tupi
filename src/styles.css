@@ -51,6 +51,24 @@ input {
   font-size: clamp(2.5rem, 6vw, 4rem);
 }
 
+.view-switcher {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.tab-button {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+}
+
+.tab-button.active {
+  background: #2563eb;
+  border-color: transparent;
+  color: #fff;
+}
+
 .lede {
   max-width: 60ch;
   color: #cbd5e1;

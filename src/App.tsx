@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 
 type CatalogSummary = {
@@ -6,14 +6,6 @@ type CatalogSummary = {
   catalogRevision: string;
   marketplaces: number;
   assets: number;
-};
-
-type RefreshRecord = {
-  summary: CatalogSummary;
-  trust_status: 'Trusted' | 'Untrusted' | 'Stale' | 'Invalid' | 'Missing';
-  source_repository: string | null;
-  source_branch: string;
-  refreshed_at: string;
 };
 
 type CatalogState = {
@@ -66,26 +58,17 @@ const fallbackMarketplaces: MarketplaceOption[] = [
 
 export default function App() {
   const [summary, setSummary] = useState<CatalogSummary>(fallbackSummary);
-  const [status, setStatus] = useState('Ready to refresh the trusted catalog.');
+  const [status, setStatus] = useState('Trusted marketplaces are ready.');
   const [details, setDetails] = useState<CatalogState | null>(null);
   const [marketplaces, setMarketplaces] = useState<MarketplaceOption[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [currentView, setCurrentView] = useState<'home' | 'about'>('home');
   const [profileForm, setProfileForm] = useState({
     id: 'project-a',
     name: 'Project A',
     enabled: true,
     assets: 'code-reviewer',
   });
-  const [refreshing, setRefreshing] = useState(false);
-
-  const trustIndicators = useMemo(
-    () => [
-      'Trust decisions live in the Rust core.',
-      'Only catalog-listed assets can be activated.',
-      'Refreshes fail closed and preserve the last valid cache.',
-    ],
-    [],
-  );
 
   async function loadMarketplaces() {
     try {
@@ -114,9 +97,7 @@ export default function App() {
         setSummary(state.summary);
         setDetails(state);
         setStatus(
-          state.stale
-            ? 'Loaded stale trusted catalog cache.'
-            : `Loaded trusted catalog cache from ${state.refreshed_at ?? 'startup'}.`,
+          state.stale ? 'Showing the bundled trusted catalog.' : 'Trusted marketplaces are ready.',
         );
       } catch {
         runningInsideTauri = false;
@@ -124,7 +105,7 @@ export default function App() {
         setDetails(fallbackDetails);
         setMarketplaces(fallbackMarketplaces);
         setProfiles([]);
-        setStatus('Running outside Tauri; showing bundled scaffold catalog.');
+        setStatus('Showing the bundled trusted catalog.');
       }
 
       if (runningInsideTauri) {
@@ -134,31 +115,6 @@ export default function App() {
 
     void load();
   }, []);
-
-  async function refreshCatalog() {
-    setRefreshing(true);
-    setStatus('Refreshing trusted catalog...');
-    try {
-      const record = await invoke<RefreshRecord>('refresh_catalog');
-      setSummary(record.summary);
-      setDetails({
-        summary: record.summary,
-        trust_status: record.trust_status,
-        source_repository: record.source_repository,
-        source_branch: record.source_branch,
-        refreshed_at: record.refreshed_at,
-        stale: false,
-      });
-      await loadMarketplaces();
-      setStatus(`Catalog refreshed as ${record.trust_status} at ${record.refreshed_at}.`);
-    } catch (error) {
-      setStatus(
-        error instanceof Error ? error.message : 'Refresh failed before trust could be established.',
-      );
-    } finally {
-      setRefreshing(false);
-    }
-  }
 
   async function saveProfile() {
     const profile: Profile = {
@@ -191,149 +147,133 @@ export default function App() {
         <p className="lede">
           Desktop trust authority for catalog-approved AI assets and project profiles.
         </p>
-      </section>
-
-      <section className="panel">
-        <h2>Catalog state</h2>
-        <dl className="grid">
-          <div>
-            <dt>Version</dt>
-            <dd>{summary.version}</dd>
-          </div>
-          <div>
-            <dt>Catalog revision</dt>
-            <dd>{summary.catalogRevision}</dd>
-          </div>
-          <div>
-            <dt>Marketplaces</dt>
-            <dd>{summary.marketplaces}</dd>
-          </div>
-          <div>
-            <dt>Assets</dt>
-            <dd>{summary.assets}</dd>
-          </div>
-          <div>
-            <dt>Source branch</dt>
-            <dd>{details?.source_branch ?? 'main'}</dd>
-          </div>
-          <div>
-            <dt>Trust status</dt>
-            <dd>{details?.trust_status ?? 'Trusted'}</dd>
-          </div>
-          <div>
-            <dt>Refresh state</dt>
-            <dd>{details?.stale ? 'Stale' : 'Current'}</dd>
-          </div>
-        </dl>
-
-        <div className="actions">
+        <nav className="view-switcher" aria-label="Application sections">
           <button
             type="button"
-            onClick={() => {
-              void refreshCatalog();
-            }}
-            disabled={refreshing}
+            className={currentView === 'home' ? 'tab-button active' : 'tab-button'}
+            onClick={() => setCurrentView('home')}
           >
-            {refreshing ? 'Refreshing…' : 'Refresh trusted catalog'}
+            Home
           </button>
-        </div>
-
-        <p className="status">{status}</p>
-      </section>
-
-      <section className="panel">
-        <h2>Trusted marketplaces</h2>
-        {marketplaces.length === 0 ? (
-          <p className="status">No trusted marketplaces are available yet.</p>
-        ) : (
-          <div className="marketplace-list">
-            {marketplaces.map((marketplace) => (
-              <article key={marketplace.id} className="marketplace-card">
-                <header>
-                  <strong>{marketplace.name}</strong>
-                  <code>{marketplace.id}</code>
-                </header>
-                <p className="marketplace-repository">{marketplace.repository}</p>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="panel">
-        <h2>MVP trust rules</h2>
-        <ul>
-          {trustIndicators.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="panel">
-        <h2>Project profiles</h2>
-        <div className="form-grid">
-          <label>
-            Profile ID
-            <input
-              value={profileForm.id}
-              onChange={(event) => setProfileForm({ ...profileForm, id: event.target.value })}
-            />
-          </label>
-          <label>
-            Display name
-            <input
-              value={profileForm.name}
-              onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
-            />
-          </label>
-          <label>
-            Approved asset IDs
-            <input
-              value={profileForm.assets}
-              onChange={(event) => setProfileForm({ ...profileForm, assets: event.target.value })}
-            />
-          </label>
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={profileForm.enabled}
-              onChange={(event) =>
-                setProfileForm({ ...profileForm, enabled: event.target.checked })
-              }
-            />
-            Enabled
-          </label>
-        </div>
-        <div className="actions">
-          <button type="button" onClick={() => void saveProfile()}>
-            Save profile
+          <button
+            type="button"
+            className={currentView === 'about' ? 'tab-button active' : 'tab-button'}
+            onClick={() => setCurrentView('about')}
+          >
+            About
           </button>
-        </div>
-        <div className="profile-list">
-          {profiles.length === 0 ? (
-            <p className="status">No profiles saved yet.</p>
-          ) : (
-            profiles.map((profile) => (
-              <article key={profile.id} className="profile-card">
-                <header>
-                  <strong>{profile.name}</strong>
-                  <span>{profile.enabled ? 'Enabled' : 'Disabled'}</span>
-                </header>
-                <p>
-                  <code>{profile.id}</code>
-                </p>
-                <p>Catalog revision: {profile.catalogRevision ?? 'unresolved'}</p>
-                <p>Assets: {profile.selected_assets.join(', ') || 'none'}</p>
-                <div className="actions">
-                  <button type="button" onClick={() => void removeProfile(profile.id)}>
-                    Delete
-                  </button>
-                </div>
-              </article>
-            ))
-          )}
-        </div>
+        </nav>
       </section>
+
+      {currentView === 'home' ? (
+        <>
+          <section className="panel">
+            <h2>Trusted marketplaces</h2>
+            {marketplaces.length === 0 ? (
+              <p className="status">No trusted marketplaces are available yet.</p>
+            ) : (
+              <div className="marketplace-list">
+                {marketplaces.map((marketplace) => (
+                  <article key={marketplace.id} className="marketplace-card">
+                    <header>
+                      <strong>{marketplace.name}</strong>
+                      <code>{marketplace.id}</code>
+                    </header>
+                    <p className="marketplace-repository">{marketplace.repository}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="panel">
+            <h2>Project profiles</h2>
+            <div className="form-grid">
+              <label>
+                Profile ID
+                <input
+                  value={profileForm.id}
+                  onChange={(event) => setProfileForm({ ...profileForm, id: event.target.value })}
+                />
+              </label>
+              <label>
+                Display name
+                <input
+                  value={profileForm.name}
+                  onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
+                />
+              </label>
+              <label>
+                Approved asset IDs
+                <input
+                  value={profileForm.assets}
+                  onChange={(event) =>
+                    setProfileForm({ ...profileForm, assets: event.target.value })
+                  }
+                />
+              </label>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={profileForm.enabled}
+                  onChange={(event) =>
+                    setProfileForm({ ...profileForm, enabled: event.target.checked })
+                  }
+                />
+                Enabled
+              </label>
+            </div>
+            <div className="actions">
+              <button type="button" onClick={() => void saveProfile()}>
+                Save profile
+              </button>
+            </div>
+            <p className="status">{status}</p>
+            <div className="profile-list">
+              {profiles.length === 0 ? (
+                <p className="status">No profiles saved yet.</p>
+              ) : (
+                profiles.map((profile) => (
+                  <article key={profile.id} className="profile-card">
+                    <header>
+                      <strong>{profile.name}</strong>
+                      <span>{profile.enabled ? 'Enabled' : 'Disabled'}</span>
+                    </header>
+                    <p>
+                      <code>{profile.id}</code>
+                    </p>
+                    <p>Catalog revision: {profile.catalogRevision ?? 'unresolved'}</p>
+                    <p>Assets: {profile.selected_assets.join(', ') || 'none'}</p>
+                    <div className="actions">
+                      <button type="button" onClick={() => void removeProfile(profile.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="panel">
+          <h2>About Tupi</h2>
+          <p className="lede">
+            Tupi ships a curated catalog of trusted marketplaces and keeps trust enforcement in
+            the native core.
+          </p>
+          <dl className="grid">
+            <div>
+              <dt>Catalog version</dt>
+              <dd>{summary.version}</dd>
+            </div>
+            <div>
+              <dt>Catalog revision</dt>
+              <dd>{summary.catalogRevision}</dd>
+            </div>
+          </dl>
+          {details?.stale ? <p className="status">Showing the bundled catalog metadata.</p> : null}
+        </section>
+      )}
     </main>
   );
 }
