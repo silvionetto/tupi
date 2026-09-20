@@ -18,6 +18,7 @@ fn main() {
       commands::get_catalog_summary,
       commands::get_catalog_state,
       commands::refresh_catalog,
+      commands::list_marketplaces,
       commands::list_profiles,
       commands::upsert_profile,
       commands::delete_profile

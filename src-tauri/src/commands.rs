@@ -1,5 +1,5 @@
 use crate::profile::Profile;
-use crate::state::{AppState, CatalogState, RefreshRecord};
+use crate::state::{AppState, CatalogState, MarketplaceOption, RefreshRecord};
 use tauri::State;
 
 #[tauri::command]
@@ -17,6 +17,13 @@ pub fn get_catalog_state(state: State<'_, AppState>) -> std::result::Result<Cata
 #[tauri::command]
 pub fn refresh_catalog(state: State<'_, AppState>) -> std::result::Result<RefreshRecord, String> {
     state.refresh_catalog().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn list_marketplaces(
+    state: State<'_, AppState>,
+) -> std::result::Result<Vec<MarketplaceOption>, String> {
+    state.list_marketplaces().map_err(|err| err.to_string())
 }
 
 #[tauri::command]

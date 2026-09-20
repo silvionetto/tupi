@@ -25,6 +25,12 @@ type CatalogState = {
   stale: boolean;
 };
 
+type MarketplaceOption = {
+  id: string;
+  name: string;
+  repository: string;
+};
+
 type Profile = {
   id: string;
   name: string;
@@ -45,6 +51,7 @@ export default function App() {
   const [summary, setSummary] = useState<CatalogSummary>(fallbackSummary);
   const [status, setStatus] = useState('Ready to refresh the trusted catalog.');
   const [details, setDetails] = useState<CatalogState | null>(null);
+  const [marketplaces, setMarketplaces] = useState<MarketplaceOption[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [profileForm, setProfileForm] = useState({
     id: 'project-a',
@@ -63,6 +70,24 @@ export default function App() {
     [],
   );
 
+  async function loadMarketplaces() {
+    try {
+      const items = await invoke<MarketplaceOption[]>('list_marketplaces');
+      setMarketplaces(items);
+    } catch {
+      setMarketplaces([]);
+    }
+  }
+
+  async function loadProfiles() {
+    try {
+      const items = await invoke<Profile[]>('list_profiles');
+      setProfiles(items);
+    } catch {
+      setProfiles([]);
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -78,12 +103,7 @@ export default function App() {
         setStatus('Running outside Tauri; showing local scaffold state.');
       }
 
-      try {
-        const items = await invoke<Profile[]>('list_profiles');
-        setProfiles(items);
-      } catch {
-        setProfiles([]);
-      }
+      await Promise.all([loadMarketplaces(), loadProfiles()]);
     };
 
     void load();
@@ -103,6 +123,7 @@ export default function App() {
         refreshed_at: record.refreshed_at,
         stale: false,
       });
+      await loadMarketplaces();
       setStatus(`Catalog refreshed as ${record.trust_status} at ${record.refreshed_at}.`);
     } catch (error) {
       setStatus(
@@ -111,32 +132,30 @@ export default function App() {
     } finally {
       setRefreshing(false);
     }
+  }
 
-    async function saveProfile() {
-      const profile: Profile = {
-        id: profileForm.id.trim(),
-        name: profileForm.name.trim(),
-        enabled: profileForm.enabled,
-        version: '1',
-        catalogRevision: details?.summary.catalogRevision ?? summary.catalogRevision,
-        selected_assets: profileForm.assets
-          .split(',')
-          .map((asset) => asset.trim())
-          .filter(Boolean),
-      };
+  async function saveProfile() {
+    const profile: Profile = {
+      id: profileForm.id.trim(),
+      name: profileForm.name.trim(),
+      enabled: profileForm.enabled,
+      version: '1',
+      catalogRevision: details?.summary.catalogRevision ?? summary.catalogRevision,
+      selected_assets: profileForm.assets
+        .split(',')
+        .map((asset) => asset.trim())
+        .filter(Boolean),
+    };
 
-      await invoke<void>('upsert_profile', { profile });
-      const items = await invoke<Profile[]>('list_profiles');
-      setProfiles(items);
-      setStatus(`Saved profile ${profile.id}.`);
-    }
+    await invoke<void>('upsert_profile', { profile });
+    await loadProfiles();
+    setStatus(`Saved profile ${profile.id}.`);
+  }
 
-    async function removeProfile(id: string) {
-      await invoke<void>('delete_profile', { profileId: id });
-      const items = await invoke<Profile[]>('list_profiles');
-      setProfiles(items);
-      setStatus(`Deleted profile ${id}.`);
-    }
+  async function removeProfile(id: string) {
+    await invoke<void>('delete_profile', { profileId: id });
+    await loadProfiles();
+    setStatus(`Deleted profile ${id}.`);
   }
 
   return (
@@ -194,6 +213,25 @@ export default function App() {
         </div>
 
         <p className="status">{status}</p>
+      </section>
+
+      <section className="panel">
+        <h2>Trusted marketplaces</h2>
+        {marketplaces.length === 0 ? (
+          <p className="status">No trusted marketplaces are available yet.</p>
+        ) : (
+          <div className="marketplace-list">
+            {marketplaces.map((marketplace) => (
+              <article key={marketplace.id} className="marketplace-card">
+                <header>
+                  <strong>{marketplace.name}</strong>
+                  <code>{marketplace.id}</code>
+                </header>
+                <p className="marketplace-repository">{marketplace.repository}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="panel">

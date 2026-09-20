@@ -87,10 +87,19 @@ dd {
   margin-top: 1.25rem;
 }
 
+.marketplace-list,
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
+}
+
+.marketplace-list {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 1rem;
+}
+
+.form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .checkbox {
@@ -111,6 +120,7 @@ dd {
   margin-top: 1.5rem;
 }
 
+.marketplace-card,
 .profile-card {
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 14px;
@@ -118,14 +128,22 @@ dd {
   background: rgba(2, 6, 23, 0.35);
 }
 
+.marketplace-card header,
 .profile-card header {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
 }
 
+.marketplace-card code,
 .profile-card code {
   color: #7dd3fc;
+}
+
+.marketplace-repository {
+  margin: 0.85rem 0 0;
+  color: #cbd5e1;
+  word-break: break-word;
 }
 
 .status {
