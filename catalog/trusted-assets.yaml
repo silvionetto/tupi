@@ -1,0 +1,38 @@
+version: 1
+catalogRevision: 0000000000000000000000000000000000000000
+
+marketplaces:
+  - id: official
+    name: Tupi Official Marketplace
+    repository: https://example.com/tupi-marketplace.git
+    branch: main
+    revision: 0000000000000000000000000000000000000000
+
+agents:
+  - id: code-reviewer
+    marketplace: official
+    path: agents/code-reviewer
+    version: 1.2.0
+    revision: 0000000000000000000000000000000000000000
+
+prompts:
+  - id: summarize-code
+    marketplace: official
+    path: prompts/summarize-code
+    version: 1.0.0
+    revision: 0000000000000000000000000000000000000000
+
+skills:
+  - id: typescript
+    marketplace: official
+    path: skills/typescript
+    version: 1.0.0
+    revision: 0000000000000000000000000000000000000000
+
+instructions:
+  - id: secure-coding
+    marketplace: official
+    path: instructions/secure-coding
+    version: 1.0.0
+    revision: 0000000000000000000000000000000000000000
+

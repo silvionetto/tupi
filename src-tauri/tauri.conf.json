@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/1",
+  "package": {
+    "productName": "Tupi",
+    "version": "0.1.0"
+  },
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
+  },
+  "tauri": {
+    "windows": [
+      {
+        "title": "Tupi",
+        "width": 1280,
+        "height": 900
+      }
+    ],
+    "bundle": {
+      "active": false,
+      "identifier": "com.tupi.desktop"
+    }
+  }
+}

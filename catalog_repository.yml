@@ -1,0 +1,10 @@
+version: 1
+
+repositories:
+  - id: tupi
+    repository: https://github.com/silvionetto/tupi
+    branch: main
+  - id: awesome-copilot
+    repository: https://github.com/github/awesome-copilot
+    branch: main
+
