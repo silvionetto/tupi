@@ -24,7 +24,7 @@
       }
     ],
     "bundle": {
-      "active": false,
+      "active": true,
       "identifier": "com.tupi.desktop"
     }
   }

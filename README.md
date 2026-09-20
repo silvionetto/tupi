@@ -37,3 +37,4 @@ If no repository is configured, the app falls back to the bundled `catalog/trust
 - Use **Conventional Commits** for PR titles and future commit messages: `<type>(<scope>): <summary>`
 - Prefer scopes such as `core`, `ui`, `catalog`, `profiles`, `release`, and `docs`
 - See `docs/conventional-commits.md` for the agreed format, examples, and release mapping
+- See `docs/release-workflow.md` for the GitHub Actions + semantic-release publishing flow
