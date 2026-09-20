@@ -126,7 +126,7 @@ export default function App() {
   const [details, setDetails] = useState<CatalogState | null>(null);
   const [marketplaces, setMarketplaces] = useState<MarketplaceOption[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [currentView, setCurrentView] = useState<'home' | 'about'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'profiles' | 'about'>('home');
   const [isTauriRuntime, setIsTauriRuntime] = useState(false);
   const [defaultProjectDisplayName, setDefaultProjectDisplayName] =
     useState(fallbackProjectDefaults.displayName);
@@ -311,6 +311,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={currentView === 'profiles' ? 'tab-button active' : 'tab-button'}
+            onClick={() => setCurrentView('profiles')}
+          >
+            Profiles
+          </button>
+          <button
+            type="button"
             className={currentView === 'about' ? 'tab-button active' : 'tab-button'}
             onClick={() => setCurrentView('about')}
           >
@@ -320,6 +327,15 @@ export default function App() {
       </section>
 
       {currentView === 'home' ? (
+        <>
+          <section className="panel">
+            <h2>Home</h2>
+            <p className="lede">
+              This page is intentionally empty for now. Project profiles live on their own page.
+            </p>
+          </section>
+        </>
+      ) : currentView === 'profiles' ? (
         <>
           <section className="panel">
             <h2>Project profiles</h2>
