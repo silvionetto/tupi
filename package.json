@@ -8,6 +8,7 @@
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "build": "vite build",
     "preview": "vite preview",
+    "tauri": "tauri",
     "release": "semantic-release"
   },
   "dependencies": {
