@@ -3,4 +3,4 @@ dist/
 .tupi/
 src-tauri/target/
 src-tauri/Cargo.lock
-
+.idea/
