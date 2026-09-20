@@ -1,0 +1,10 @@
+## 1.0.0 (2026-09-20)
+
+### Features
+
+* **core:** sync trusted marketplace agents ([30fc968](https://github.com/silvionetto/tupi/commit/30fc968ada93fe7dbf6826e374955097d9af9e91))
+
+### Bug Fixes
+
+* **release:** install conventional commits preset ([8f36075](https://github.com/silvionetto/tupi/commit/8f3607525cbf6a047ec34cb801379eca660a3d6a))
+* **ui:** filter marketplace agents ([9283c89](https://github.com/silvionetto/tupi/commit/9283c89ceec864efd1135004ac49687a1f7add86))
