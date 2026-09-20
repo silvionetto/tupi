@@ -1,3 +1,9 @@
+## [1.0.2](https://github.com/silvionetto/tupi/compare/v1.0.1...v1.0.2) (2026-09-20)
+
+### Bug Fixes
+
+* **release:** add tauri bundle assets ([cf76ed8](https://github.com/silvionetto/tupi/commit/cf76ed81aa2fbe1649b3665a3322998ec25f8b19))
+
 ## [1.0.1](https://github.com/silvionetto/tupi/compare/v1.0.0...v1.0.1) (2026-09-20)
 
 ### Bug Fixes
