@@ -322,24 +322,6 @@ export default function App() {
       {currentView === 'home' ? (
         <>
           <section className="panel">
-            <h2>Trusted marketplaces</h2>
-            {marketplaces.length === 0 ? (
-              <p className="status">No trusted marketplaces are available yet.</p>
-            ) : (
-              <div className="marketplace-list">
-                {marketplaces.map((marketplace) => (
-                  <article key={marketplace.id} className="marketplace-card">
-                    <header>
-                      <strong>{marketplace.name}</strong>
-                      <code>{marketplace.id}</code>
-                    </header>
-                    <p className="marketplace-repository">{marketplace.repository}</p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-          <section className="panel">
             <h2>Project profiles</h2>
             <p className="lede">
               Each project keeps a database-backed ID, the repository root location, a guessed
@@ -438,24 +420,44 @@ export default function App() {
           </section>
         </>
       ) : (
-        <section className="panel">
-          <h2>About Tupi</h2>
-          <p className="lede">
-            Tupi ships a curated catalog of trusted marketplaces and keeps trust enforcement in
-            the native core.
-          </p>
-          <dl className="grid">
-            <div>
-              <dt>Catalog version</dt>
-              <dd>{summary.version}</dd>
-            </div>
-            <div>
-              <dt>Catalog revision</dt>
-              <dd>{summary.catalogRevision}</dd>
-            </div>
-          </dl>
-          {details?.stale ? <p className="status">Showing the bundled catalog metadata.</p> : null}
-        </section>
+        <>
+          <section className="panel">
+            <h2>About Tupi</h2>
+            <p className="lede">
+              Tupi ships a curated catalog of trusted marketplaces and keeps trust enforcement in
+              the native core.
+            </p>
+            <dl className="grid">
+              <div>
+                <dt>Catalog version</dt>
+                <dd>{summary.version}</dd>
+              </div>
+              <div>
+                <dt>Catalog revision</dt>
+                <dd>{summary.catalogRevision}</dd>
+              </div>
+            </dl>
+            {details?.stale ? <p className="status">Showing the bundled catalog metadata.</p> : null}
+          </section>
+          <section className="panel">
+            <h2>Trusted marketplaces</h2>
+            {marketplaces.length === 0 ? (
+              <p className="status">No trusted marketplaces are available yet.</p>
+            ) : (
+              <div className="marketplace-list">
+                {marketplaces.map((marketplace) => (
+                  <article key={marketplace.id} className="marketplace-card">
+                    <header>
+                      <strong>{marketplace.name}</strong>
+                      <code>{marketplace.id}</code>
+                    </header>
+                    <p className="marketplace-repository">{marketplace.repository}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
       )}
     </main>
   );
