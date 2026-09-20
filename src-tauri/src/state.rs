@@ -1,10 +1,11 @@
-use crate::catalog::{load_catalog_from_str, summarize, CatalogSummary};
+use crate::catalog::{load_catalog_from_str, summarize, CatalogSummary, Marketplace, TrustedCatalog};
 use crate::error::Result;
 use crate::profile::Profile;
 use crate::trust::TrustStatus;
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -12,22 +13,7 @@ use std::process::Command;
 pub struct AppState {
     db_path: PathBuf,
     catalog_path: PathBuf,
-    repository_catalog_path: PathBuf,
     cache_dir: PathBuf,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RepositoryCatalog {
-    pub version: u32,
-    #[serde(default)]
-    pub repositories: Vec<TrustedRepository>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TrustedRepository {
-    pub id: String,
-    pub repository: String,
-    pub branch: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,9 +35,21 @@ pub struct CatalogState {
     pub stale: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentOption {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarketplaceOption {
+    pub id: String,
+    pub name: String,
+    pub repository: String,
+}
+
 impl AppState {
     pub fn new() -> Result<Self> {
-        let root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let root = Self::resolve_workspace_root();
         let state_dir = root.join(".tupi");
         fs::create_dir_all(&state_dir).ok();
         let cache_dir = state_dir.join("catalog-cache");
@@ -59,11 +57,42 @@ impl AppState {
         let state = Self {
             db_path: state_dir.join("state.sqlite"),
             catalog_path: root.join("catalog").join("trusted-assets.yaml"),
-            repository_catalog_path: root.join("catalog_repository.yml"),
             cache_dir,
         };
         state.initialize()?;
         Ok(state)
+    }
+
+    fn resolve_workspace_root() -> PathBuf {
+        let mut candidates = Vec::new();
+
+        if let Ok(current_dir) = std::env::current_dir() {
+            candidates.push(current_dir);
+        }
+
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(parent) = exe_path.parent() {
+                candidates.push(parent.to_path_buf());
+            }
+        }
+
+        for candidate in candidates {
+            if let Some(root) = Self::find_workspace_root_from(&candidate) {
+                return root;
+            }
+        }
+
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    }
+
+    fn find_workspace_root_from(start: &Path) -> Option<PathBuf> {
+        for candidate in start.ancestors() {
+            if candidate.join("catalog").join("trusted-assets.yaml").is_file() {
+                return Some(candidate.to_path_buf());
+            }
+        }
+
+        None
     }
 
     pub fn open(&self) -> Result<Connection> {
@@ -159,16 +188,12 @@ impl AppState {
     }
 
     pub fn refresh_catalog(&self) -> Result<RefreshRecord> {
-        let repository_catalog = self.load_repository_catalog()?;
         let source_repository = self.source_repository();
         let source_branch = self.source_branch();
         if source_branch != "main" {
             return Err(crate::error::TupiError::CatalogValidation(
                 "catalog refresh must target main".into(),
             ));
-        }
-        if let Some(repository) = source_repository.as_deref() {
-            self.verify_trusted_repository(&repository_catalog, repository, &source_branch)?;
         }
         let contents = self.fetch_catalog_contents(source_repository.as_deref(), &source_branch)?;
         let catalog = load_catalog_from_str(&contents)?;
@@ -257,6 +282,33 @@ impl AppState {
         Ok(())
     }
 
+    pub fn list_available_agents(&self) -> Result<Vec<AgentOption>> {
+        let contents = self.read_active_catalog_contents()?;
+        let catalog = load_catalog_from_str(&contents)?;
+        let agent_roots = self.trusted_marketplace_agent_roots(&catalog)?;
+        let agents = Self::discover_agents_from_roots(&agent_roots)?;
+
+        if agents.is_empty() {
+            return Err(crate::error::TupiError::CatalogRead(
+                "no Markdown agents were found in trusted marketplace workspaces".into(),
+            ));
+        }
+
+        Ok(agents)
+    }
+
+    pub fn list_marketplaces(&self) -> Result<Vec<MarketplaceOption>> {
+        let contents = self.read_active_catalog_contents()?;
+        let catalog = load_catalog_from_str(&contents)?;
+        let mut marketplaces = catalog
+            .marketplaces
+            .iter()
+            .map(Self::to_marketplace_option)
+            .collect::<Vec<_>>();
+        marketplaces.sort_by(|left, right| left.name.cmp(&right.name).then(left.id.cmp(&right.id)));
+        Ok(marketplaces)
+    }
+
     pub fn _catalog_path(&self) -> &Path {
         &self.catalog_path
     }
@@ -287,81 +339,6 @@ impl AppState {
                 err
             ))
         })
-    }
-
-    fn load_repository_catalog(&self) -> Result<RepositoryCatalog> {
-        let contents = fs::read_to_string(&self.repository_catalog_path).map_err(|err| {
-            crate::error::TupiError::CatalogRead(format!(
-                "{} ({})",
-                self.repository_catalog_path.display(),
-                err
-            ))
-        })?;
-        let catalog: RepositoryCatalog =
-            serde_yaml::from_str(&contents).map_err(|err| crate::error::TupiError::CatalogParse(err.to_string()))?;
-        self.validate_repository_catalog(&catalog)?;
-        Ok(catalog)
-    }
-
-    fn validate_repository_catalog(&self, catalog: &RepositoryCatalog) -> Result<()> {
-        if catalog.version == 0 {
-            return Err(crate::error::TupiError::CatalogValidation(
-                "repository catalog version must be positive".into(),
-            ));
-        }
-        let mut seen = std::collections::HashSet::new();
-        for repository in &catalog.repositories {
-            if repository.id.trim().is_empty() {
-                return Err(crate::error::TupiError::CatalogValidation(
-                    "repository id is required".into(),
-                ));
-            }
-            if repository.repository.trim().is_empty() {
-                return Err(crate::error::TupiError::CatalogValidation(
-                    "repository url is required".into(),
-                ));
-            }
-            if repository.branch != "main" {
-                return Err(crate::error::TupiError::CatalogValidation(format!(
-                    "repository {} must target main",
-                    repository.id
-                )));
-            }
-            if !seen.insert(repository.id.as_str()) {
-                return Err(crate::error::TupiError::CatalogValidation(format!(
-                    "duplicate repository id: {}",
-                    repository.id
-                )));
-            }
-            url::Url::parse(&repository.repository)?;
-        }
-        Ok(())
-    }
-
-    fn verify_trusted_repository(
-        &self,
-        catalog: &RepositoryCatalog,
-        repository: &str,
-        branch: &str,
-    ) -> Result<()> {
-        if let Some(entry) = catalog
-            .repositories
-            .iter()
-            .find(|candidate| candidate.repository == repository)
-        {
-            if entry.branch != branch {
-                return Err(crate::error::TupiError::CatalogValidation(format!(
-                    "repository {} is only trusted on {}",
-                    repository, entry.branch
-                )));
-            }
-            return Ok(());
-        }
-
-        Err(crate::error::TupiError::CatalogValidation(format!(
-            "repository {} is not listed in catalog_repository.yml",
-            repository
-        )))
     }
 
     fn read_cached_catalog_yaml(&self) -> Result<Option<String>> {
@@ -494,5 +471,265 @@ impl AppState {
         fs::read_to_string(&catalog_path).map_err(|err| {
             crate::error::TupiError::CatalogRead(format!("{} ({})", catalog_path.display(), err))
         })
+    }
+
+    fn trusted_marketplace_agent_roots(&self, catalog: &TrustedCatalog) -> Result<Vec<(String, PathBuf)>> {
+        let mut roots = Vec::new();
+
+        for marketplace in &catalog.marketplaces {
+            let workspace = self.sync_repository_workspace(
+                "marketplaces",
+                &marketplace.id,
+                &marketplace.repository,
+                &marketplace.branch,
+                "trusted marketplace repository",
+            )?;
+            let agents_dir = workspace.join("agents");
+            if agents_dir.is_dir() {
+                roots.push((marketplace.id.clone(), agents_dir));
+            }
+        }
+
+        Ok(roots)
+    }
+
+    fn sync_repository_workspace(
+        &self,
+        namespace: &str,
+        cache_key: &str,
+        repository: &str,
+        branch: &str,
+        label: &str,
+    ) -> Result<PathBuf> {
+        let repo_dir = self
+            .cache_dir
+            .join(namespace)
+            .join(Self::sanitize_cache_key(cache_key));
+
+        if let Some(parent) = repo_dir.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+        }
+
+        if repo_dir.exists() && !repo_dir.join(".git").exists() {
+            fs::remove_dir_all(&repo_dir).ok();
+        }
+
+        if !repo_dir.join(".git").exists() {
+            let status = Command::new("git")
+                .args([
+                    "clone",
+                    "--branch",
+                    branch,
+                    "--single-branch",
+                    repository,
+                    repo_dir.to_string_lossy().as_ref(),
+                ])
+                .status()
+                .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+            if !status.success() {
+                return Err(crate::error::TupiError::CatalogRead(format!(
+                    "failed to clone {label}"
+                )));
+            }
+        } else {
+            let status = Command::new("git")
+                .args([
+                    "-C",
+                    repo_dir.to_string_lossy().as_ref(),
+                    "fetch",
+                    "origin",
+                    branch,
+                ])
+                .status()
+                .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+            if !status.success() {
+                return Err(crate::error::TupiError::CatalogRead(format!(
+                    "failed to fetch {label}"
+                )));
+            }
+        }
+
+        let status = Command::new("git")
+            .args([
+                "-C",
+                repo_dir.to_string_lossy().as_ref(),
+                "checkout",
+                "-B",
+                branch,
+                &format!("origin/{branch}"),
+            ])
+            .status()
+            .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+        if !status.success() {
+            return Err(crate::error::TupiError::CatalogRead(format!(
+                "failed to check out {label} branch"
+            )));
+        }
+
+        Ok(repo_dir)
+    }
+
+    fn sanitize_cache_key(value: &str) -> String {
+        value
+            .chars()
+            .map(|ch| match ch {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' => ch,
+                _ => '-',
+            })
+            .collect()
+    }
+
+    fn to_marketplace_option(marketplace: &Marketplace) -> MarketplaceOption {
+        MarketplaceOption {
+            id: marketplace.id.clone(),
+            name: marketplace.name.clone(),
+            repository: marketplace.repository.clone(),
+        }
+    }
+
+    fn discover_agents_from_roots(agent_roots: &[(String, PathBuf)]) -> Result<Vec<AgentOption>> {
+        let mut discovered: BTreeMap<String, (String, String)> = BTreeMap::new();
+
+        for (marketplace_id, agents_dir) in agent_roots {
+            Self::collect_agent_names(agents_dir, marketplace_id, &mut discovered)?;
+        }
+
+        Ok(discovered
+            .into_values()
+            .map(|(name, _)| AgentOption { name })
+            .collect())
+    }
+
+    fn collect_agent_names(
+        current_dir: &Path,
+        marketplace_id: &str,
+        discovered: &mut BTreeMap<String, (String, String)>,
+    ) -> Result<()> {
+        let entries = fs::read_dir(current_dir).map_err(|err| {
+            crate::error::TupiError::CatalogRead(format!("{} ({})", current_dir.display(), err))
+        })?;
+
+        for entry in entries {
+            let entry =
+                entry.map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+            let path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+
+            if file_type.is_dir() {
+                Self::collect_agent_names(&path, marketplace_id, discovered)?;
+                continue;
+            }
+
+            if !file_type.is_file() {
+                continue;
+            }
+
+            let extension = path
+                .extension()
+                .and_then(|value| value.to_str())
+                .map(|value| value.to_ascii_lowercase());
+            if extension.as_deref() != Some("md") {
+                continue;
+            }
+
+            let stem = path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    crate::error::TupiError::CatalogValidation(format!(
+                        "agent file {} must have a valid name",
+                        path.display()
+                    ))
+                })?;
+
+            let duplicate_key = stem.to_ascii_lowercase();
+            if let Some((_, existing_marketplace)) = discovered.get(&duplicate_key) {
+                return Err(crate::error::TupiError::CatalogValidation(format!(
+                    "duplicate agent name {} found in trusted marketplace {} and {}",
+                    stem, existing_marketplace, marketplace_id
+                )));
+            }
+
+            discovered.insert(duplicate_key, (stem, marketplace_id.to_string()));
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppState;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn discovers_sorted_markdown_agents_from_nested_directories() {
+        let root = unique_temp_dir("agent-discovery");
+        let agents_dir = root.join("agents");
+        fs::create_dir_all(agents_dir.join("nested")).unwrap();
+        fs::write(agents_dir.join("reviewer.md"), "# reviewer").unwrap();
+        fs::write(agents_dir.join("nested").join("planner.md"), "# planner").unwrap();
+        fs::write(agents_dir.join("nested").join("notes.txt"), "ignore").unwrap();
+
+        let agents = AppState::discover_agents_from_roots(&[(String::from("official"), agents_dir)])
+            .unwrap();
+
+        assert_eq!(agents.len(), 2);
+        assert_eq!(agents[0].name, "planner");
+        assert_eq!(agents[1].name, "reviewer");
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_duplicate_agent_names_across_marketplaces() {
+        let root = unique_temp_dir("agent-duplicates");
+        let first = root.join("first").join("agents");
+        let second = root.join("second").join("agents");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+        fs::write(first.join("reviewer.md"), "# reviewer").unwrap();
+        fs::write(second.join("Reviewer.md"), "# reviewer").unwrap();
+
+        let error = AppState::discover_agents_from_roots(&[
+            (String::from("official"), first),
+            (String::from("awesome-copilot"), second),
+        ])
+        .unwrap_err();
+
+        assert!(error.to_string().contains("duplicate agent name Reviewer"));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn finds_workspace_root_from_src_tauri_directory() {
+        let root = unique_temp_dir("workspace-root");
+        fs::create_dir_all(root.join("catalog")).unwrap();
+        fs::create_dir_all(root.join("src-tauri").join("src")).unwrap();
+        fs::write(root.join("catalog").join("trusted-assets.yaml"), "version: 1").unwrap();
+
+        let resolved = AppState::find_workspace_root_from(&root.join("src-tauri").join("src"));
+
+        assert_eq!(resolved.as_deref(), Some(root.as_path()));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("tupi-{name}-{suffix}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
     }
 }
