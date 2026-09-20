@@ -29,3 +29,9 @@ The Home page now scans the current user's global Copilot agent folder at `%USER
 - `TUPI_CATALOG_BRANCH`: trusted branch name; the MVP only accepts `main`
 
 If no repository is configured, the app falls back to the bundled `catalog/trusted-assets.yaml` sample and marks the state as local scaffold data.
+
+## Contributor conventions
+
+- Use **Conventional Commits** for PR titles and future commit messages: `<type>(<scope>): <summary>`
+- Prefer scopes such as `core`, `ui`, `catalog`, `profiles`, `release`, and `docs`
+- See `docs/conventional-commits.md` for the agreed format, examples, and release mapping

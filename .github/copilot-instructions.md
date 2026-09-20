@@ -32,3 +32,14 @@ The trust model in `README.md` and `docs/trusted-catalog.md` is not just documen
 - **Serde field shapes matter across the Tauri boundary.** The frontend expects the Rust payload shape as serialized today, including `catalogRevision` for catalog/profile revisions and snake_case fields like `trust_status`, `source_branch`, and `selected_assets`.
 - **Schema changes require migration code, not just SQL edits.** `AppState::initialize()` plus `ensure_cache_columns()` are the repository’s existing pattern for evolving the SQLite schema without breaking older local state.
 - **Persist durable knowledge in `docs/` before ending a session.** When a session uncovers reusable repository knowledge, capture it as focused Markdown under `docs/` instead of leaving it only in chat context. Prefer small topic-based files such as `docs/profile-agent-picker.md`, with concise headings, decision summaries, invariants, command examples, and links to the canonical code/docs so future agents can scan only the relevant file and spend fewer tokens.
+
+## Commit and PR conventions
+
+- **Use Conventional Commits** for commit messages and PR titles: `<type>(<scope>): <summary>`.
+- **Treat `core`, `ui`, `catalog`, `profiles`, `release`, `docs`, and similar labels as scopes**, not types. Prefer `feat(core): ...` over `core: ...`.
+- **Allowed primary types:** `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `style`.
+- **Breaking changes:** use `!` before the colon, such as `feat(core)!: ...`, and include a `BREAKING CHANGE:` footer when the migration impact needs explanation.
+- **Keep summaries imperative and concise.** Prefer `fix(ui): preserve selected profile after refresh` over vague summaries like `fix stuff`.
+- **When asked to commit, propose, or rewrite a commit message or PR title, always return a Conventional Commit form** unless the user explicitly asks for something else.
+- **Release intent:** `feat` maps to a minor release; `fix` and `perf` map to patch releases; other types normally do not trigger a release unless explicitly configured later.
+- **Copilot instructions are guidance, not hard enforcement.** Use them to influence Copilot-generated commit messages and PR titles, but rely on repository automation such as PR-title validation or commitlint to enforce the rule.
