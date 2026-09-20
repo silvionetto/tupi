@@ -15,3 +15,6 @@ url = "2"
 
 [build-dependencies]
 tauri-build = { version = "1", features = [] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
