@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/silvionetto/tupi/compare/v1.0.0...v1.0.1) (2026-09-20)
+
+### Bug Fixes
+
+* **release:** add tauri build script ([366f160](https://github.com/silvionetto/tupi/commit/366f1604da7678c4abebbbbc875f1bbe37ad6278))
+
 ## 1.0.0 (2026-09-20)
 
 ### Features
