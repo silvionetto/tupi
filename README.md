@@ -21,6 +21,8 @@ The current implementation focuses on the trust-model foundation: catalog loadin
 
 Project profiles are stored locally in the existing embedded SQLite database at `.tupi/state.sqlite`. The current Profiles page focuses on project metadata: a database-backed ID, the saved repository root location, a display name guessed from that folder name and still editable, and an optional description.
 
+The Home page now scans the current user's global Copilot agent folder at `%USERPROFILE%\.copilot\agents` on application startup. Tupi stores each discovered `*.agent.md` file in the local SQLite database with its filename-derived agent name, file location, optional frontmatter `description`, and a trust flag. A global agent is marked trusted only when its file bytes exactly match a catalog-listed trusted agent file already present in Tupi's trusted marketplace cache.
+
 ### Local refresh configuration
 
 - `TUPI_CATALOG_REPOSITORY`: optional git repository URL used for trusted catalog refreshes

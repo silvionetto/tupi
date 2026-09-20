@@ -114,6 +114,25 @@ The consuming application should only use the result supplied by Tupi. It may
 enforce capability or permission requirements, but it should not decide whether
 the source branch is trusted.
 
+## Global Copilot agents on the Home page
+
+The desktop app may also inspect the current user's global Copilot agent folder
+under `.copilot/agents`. Those files are **not** trusted merely because they
+exist on the local machine.
+
+When Tupi discovers a local `*.agent.md` file, it persists the file metadata in
+SQLite and evaluates trust in the Rust core. A local global agent is trusted
+only when:
+
+1. the trusted catalog lists the agent;
+2. the corresponding trusted marketplace workspace already exists in
+   `.tupi/catalog-cache/marketplaces`; and
+3. the local file bytes exactly match the trusted agent file bytes.
+
+If Tupi cannot make that exact match, the local global agent must remain
+untrusted. The UI may display the result, but it must not upgrade or infer
+trust on its own.
+
 ## Profiles
 
 Profiles should select assets and configuration, but should not grant trust.

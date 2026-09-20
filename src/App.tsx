@@ -35,6 +35,20 @@ type Profile = {
   selected_assets: string[];
 };
 
+type GlobalAgent = {
+  name: string;
+  file_location: string;
+  description: string | null;
+  trust_status: 'Trusted' | 'Untrusted' | 'Stale' | 'Invalid' | 'Missing';
+};
+
+type GlobalAgentsState = {
+  agents: GlobalAgent[];
+  scan_root: string;
+  refreshed_at: string | null;
+  error_message: string | null;
+};
+
 type ProjectProfileDefaults = {
   displayName: string;
 };
@@ -76,6 +90,13 @@ const fallbackMarketplaces: MarketplaceOption[] = [
 
 const fallbackProjectDefaults: ProjectProfileDefaults = {
   displayName: 'Project',
+};
+
+const fallbackGlobalAgentsState: GlobalAgentsState = {
+  agents: [],
+  scan_root: '.copilot\\agents',
+  refreshed_at: null,
+  error_message: null,
 };
 
 function normalizeOptionalText(value: string) {
@@ -126,6 +147,8 @@ export default function App() {
   const [details, setDetails] = useState<CatalogState | null>(null);
   const [marketplaces, setMarketplaces] = useState<MarketplaceOption[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [globalAgentsState, setGlobalAgentsState] =
+    useState<GlobalAgentsState>(fallbackGlobalAgentsState);
   const [currentView, setCurrentView] = useState<'home' | 'profiles' | 'about'>('home');
   const [isTauriRuntime, setIsTauriRuntime] = useState(false);
   const [defaultProjectDisplayName, setDefaultProjectDisplayName] =
@@ -150,6 +173,15 @@ export default function App() {
       setProfiles(items);
     } catch {
       setProfiles([]);
+    }
+  }
+
+  async function loadGlobalAgents() {
+    try {
+      const state = await invoke<GlobalAgentsState>('get_global_agents_state');
+      setGlobalAgentsState(state);
+    } catch {
+      setGlobalAgentsState(fallbackGlobalAgentsState);
     }
   }
 
@@ -249,11 +281,13 @@ export default function App() {
         await Promise.all([
           loadMarketplaces(),
           loadProfiles(),
+          loadGlobalAgents(),
           loadProjectProfileDefaults(catalogRevision),
         ]);
       } else {
         setDefaultProjectDisplayName(fallbackProjectDefaults.displayName);
         setProfileForm(createProfileForm(fallbackProjectDefaults.displayName, catalogRevision));
+        setGlobalAgentsState(fallbackGlobalAgentsState);
       }
     };
 
@@ -331,8 +365,60 @@ export default function App() {
           <section className="panel">
             <h2>Home</h2>
             <p className="lede">
-              This page is intentionally empty for now. Project profiles live on their own page.
+              Tupi tracks global Copilot agents from the user profile and shows whether each one
+              matches a trusted catalog agent.
             </p>
+            {!isTauriRuntime ? (
+              <p className="status">
+                Global agent discovery is available only in the Tauri desktop app.
+              </p>
+            ) : (
+              <>
+                <dl className="grid compact-grid">
+                  <div>
+                    <dt>Scan location</dt>
+                    <dd>{globalAgentsState.scan_root}</dd>
+                  </div>
+                  <div>
+                    <dt>Last startup scan</dt>
+                    <dd>{globalAgentsState.refreshed_at ?? 'Not scanned yet'}</dd>
+                  </div>
+                </dl>
+                {globalAgentsState.error_message ? (
+                  <p className="status">
+                    Startup scan reported an error: {globalAgentsState.error_message}
+                  </p>
+                ) : null}
+                {globalAgentsState.agents.length === 0 ? (
+                  <p className="status">
+                    No global Copilot agents were found under {globalAgentsState.scan_root}.
+                  </p>
+                ) : (
+                  <div className="agent-list">
+                    {globalAgentsState.agents.map((agent) => (
+                      <article key={agent.file_location} className="agent-card">
+                        <header>
+                          <div>
+                            <strong>{agent.name}</strong>
+                            <p className="agent-path">{agent.file_location}</p>
+                          </div>
+                          <span
+                            className={
+                              agent.trust_status === 'Trusted'
+                                ? 'trust-badge trusted'
+                                : 'trust-badge untrusted'
+                            }
+                          >
+                            {agent.trust_status}
+                          </span>
+                        </header>
+                        <p>{agent.description ?? 'No frontmatter description provided.'}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </section>
         </>
       ) : currentView === 'profiles' ? (

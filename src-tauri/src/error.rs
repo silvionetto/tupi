@@ -8,6 +8,10 @@ pub enum TupiError {
     CatalogParse(String),
     #[error("catalog validation failed: {0}")]
     CatalogValidation(String),
+    #[error("failed to read agent: {0}")]
+    AgentRead(String),
+    #[error("agent validation failed: {0}")]
+    AgentValidation(String),
     #[error("profile validation failed: {0}")]
     ProfileValidation(String),
     #[error("sqlite error: {0}")]

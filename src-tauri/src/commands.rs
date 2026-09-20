@@ -1,5 +1,7 @@
 use crate::profile::{Profile, ProjectProfileDefaults};
-use crate::state::{AppState, CatalogState, MarketplaceOption, RefreshRecord};
+use crate::state::{
+    AppState, CatalogState, GlobalAgentsState, MarketplaceOption, RefreshRecord,
+};
 use tauri::State;
 
 #[tauri::command]
@@ -29,6 +31,13 @@ pub fn list_marketplaces(
 #[tauri::command]
 pub fn list_profiles(state: State<'_, AppState>) -> std::result::Result<Vec<Profile>, String> {
     state.read_profiles().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn get_global_agents_state(
+    state: State<'_, AppState>,
+) -> std::result::Result<GlobalAgentsState, String> {
+    state.load_global_agents_state().map_err(|err| err.to_string())
 }
 
 #[tauri::command]

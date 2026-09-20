@@ -11,6 +11,7 @@ use state::AppState;
 
 fn main() {
   let state = AppState::new().expect("failed to initialize application state");
+  let _ = state.refresh_global_agents();
 
   tauri::Builder::default()
     .manage(state)
@@ -20,6 +21,7 @@ fn main() {
       commands::refresh_catalog,
       commands::list_marketplaces,
       commands::list_profiles,
+      commands::get_global_agents_state,
       commands::get_project_profile_defaults,
       commands::upsert_profile,
       commands::delete_profile

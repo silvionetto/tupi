@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TrustStatus {
     Trusted,
     Untrusted,
@@ -17,4 +17,3 @@ pub struct ResolvedAsset {
     pub trust_status: TrustStatus,
     pub source_branch: String,
 }
-
