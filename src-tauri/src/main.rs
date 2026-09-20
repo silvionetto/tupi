@@ -12,6 +12,7 @@ use state::AppState;
 fn main() {
   let state = AppState::new().expect("failed to initialize application state");
   let _ = state.refresh_global_agents();
+  let _ = state.refresh_marketplace_agents();
 
   tauri::Builder::default()
     .manage(state)

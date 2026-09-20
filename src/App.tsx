@@ -22,6 +22,13 @@ type MarketplaceOption = {
   id: string;
   name: string;
   repository: string;
+  agents: MarketplaceAgent[];
+};
+
+type MarketplaceAgent = {
+  name: string;
+  description: string | null;
+  trust_status: 'Trusted' | 'Untrusted' | 'Stale' | 'Invalid' | 'Missing';
 };
 
 type Profile = {
@@ -85,6 +92,7 @@ const fallbackMarketplaces: MarketplaceOption[] = [
     id: 'awesome-copilot',
     name: 'awesome-copilot',
     repository: 'https://github.com/github/awesome-copilot',
+    agents: [],
   },
 ];
 
@@ -554,6 +562,32 @@ export default function App() {
                       <code>{marketplace.id}</code>
                     </header>
                     <p className="marketplace-repository">{marketplace.repository}</p>
+                    <details className="marketplace-agents">
+                      <summary>
+                        <span>Agents</span>
+                        <span className="marketplace-agent-count">
+                          {marketplace.agents.length === 0
+                            ? 'No trusted agents cached'
+                            : `${marketplace.agents.length} trusted agent${
+                                marketplace.agents.length === 1 ? '' : 's'
+                              }`}
+                        </span>
+                      </summary>
+                      {marketplace.agents.length === 0 ? (
+                        <p className="marketplace-agent-empty">
+                          No trusted marketplace agents are cached yet.
+                        </p>
+                      ) : (
+                        <ul className="marketplace-agent-items">
+                          {marketplace.agents.map((agent) => (
+                            <li key={`${marketplace.id}-${agent.name}`} className="marketplace-agent-item">
+                              <strong>{agent.name}</strong>
+                              <p>{agent.description ?? 'No frontmatter description provided.'}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </details>
                   </article>
                 ))}
               </div>

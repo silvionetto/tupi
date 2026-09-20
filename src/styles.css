@@ -212,6 +212,50 @@ dd {
   word-break: break-word;
 }
 
+.marketplace-agents {
+  margin-top: 1rem;
+}
+
+.marketplace-agents summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.marketplace-agents summary::-webkit-details-marker {
+  display: none;
+}
+
+.marketplace-agent-count {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: #94a3b8;
+}
+
+.marketplace-agent-items {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.marketplace-agent-item {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-top: 0.75rem;
+}
+
+.marketplace-agent-item p,
+.marketplace-agent-empty {
+  margin: 0.45rem 0 0;
+  color: #cbd5e1;
+}
+
 .agent-card p,
 .profile-card p {
   margin: 0.85rem 0 0;

@@ -70,11 +70,14 @@ should be pinned to immutable commits or versions rather than an unbounded
 2. Only the Tupi repository's `main` branch can publish trusted catalog
    changes.
 3. A marketplace must be listed in the catalog to be trusted.
-4. An asset must be listed in the catalog and resolve to its declared
-   marketplace and revision to be trusted.
-5. A branch name must be verified by Tupi before an asset is trusted.
-6. An application or profile must not implement a second trust policy.
-7. An untrusted asset must never be silently promoted to trusted status by an
+4. Catalog-listed assets must resolve to their declared marketplace and
+   revision to be trusted.
+5. Marketplace-owned `*.agent.md` files discovered under a trusted
+   marketplace's `agents/` folder are treated as trusted marketplace agents
+   and may be persisted for browsing in the desktop app.
+6. A branch name must be verified by Tupi before an asset is trusted.
+7. An application or profile must not implement a second trust policy.
+8. An untrusted asset must never be silently promoted to trusted status by an
    application, profile, plugin, or configuration file.
 
 ## Desktop refresh workflow
@@ -87,7 +90,9 @@ The desktop application should:
 4. Parse and validate `trusted-assets.yaml` against its schema.
 5. Compare the catalog revision with the local catalog cache.
 6. Download or update only the marketplaces and assets listed in the catalog.
-7. Activate only the assets selected by the current project profile.
+7. Scan each trusted marketplace `agents/` folder for `*.agent.md` files and
+   persist that marketplace-owned inventory with trust metadata.
+8. Activate only the assets selected by the current project profile.
 
 If the catalog cannot be fetched or verified, the application should retain the
 last known valid catalog and clearly report that refresh failed. It must not
@@ -113,6 +118,18 @@ Tupi should:
 The consuming application should only use the result supplied by Tupi. It may
 enforce capability or permission requirements, but it should not decide whether
 the source branch is trusted.
+
+## Trusted marketplace agent inventory
+
+The About page may display marketplace-owned agent inventories for trusted
+marketplaces. Tupi derives that inventory from the cached trusted marketplace
+workspace under `.tupi/catalog-cache/marketplaces/<marketplace-id>/agents`.
+
+When Tupi discovers a `*.agent.md` file in that trusted marketplace workspace,
+it persists the agent under the owning marketplace in SQLite with the
+filename-derived name, optional frontmatter `description`, and a trusted
+status. This inventory is for browsing trusted marketplace content; it is
+separate from the local global-agent scan under `.copilot/agents`.
 
 ## Global Copilot agents on the Home page
 
