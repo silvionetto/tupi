@@ -237,6 +237,16 @@ dd {
   color: #94a3b8;
 }
 
+.marketplace-agent-filter {
+  display: block;
+  margin-top: 0.85rem;
+  color: #cbd5e1;
+}
+
+.marketplace-agent-filter input {
+  margin-top: 0.5rem;
+}
+
 .marketplace-agent-items {
   list-style: none;
   margin: 0.85rem 0 0;

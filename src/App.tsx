@@ -154,6 +154,9 @@ export default function App() {
   const [status, setStatus] = useState('Trusted marketplaces are ready.');
   const [details, setDetails] = useState<CatalogState | null>(null);
   const [marketplaces, setMarketplaces] = useState<MarketplaceOption[]>([]);
+  const [marketplaceAgentFilters, setMarketplaceAgentFilters] = useState<Record<string, string>>(
+    {},
+  );
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [globalAgentsState, setGlobalAgentsState] =
     useState<GlobalAgentsState>(fallbackGlobalAgentsState);
@@ -206,6 +209,17 @@ export default function App() {
 
   function currentCatalogRevision() {
     return details?.summary.catalogRevision ?? summary.catalogRevision;
+  }
+
+  function filterMarketplaceAgents(marketplace: MarketplaceOption) {
+    const filterText = marketplaceAgentFilters[marketplace.id]?.trim().toLocaleLowerCase() ?? '';
+    if (filterText.length === 0) {
+      return marketplace.agents;
+    }
+
+    return marketplace.agents.filter((agent) =>
+      agent.name.toLocaleLowerCase().includes(filterText),
+    );
   }
 
   function startNewProfile() {
@@ -555,41 +569,69 @@ export default function App() {
               <p className="status">No trusted marketplaces are available yet.</p>
             ) : (
               <div className="marketplace-list">
-                {marketplaces.map((marketplace) => (
-                  <article key={marketplace.id} className="marketplace-card">
-                    <header>
-                      <strong>{marketplace.name}</strong>
-                      <code>{marketplace.id}</code>
-                    </header>
-                    <p className="marketplace-repository">{marketplace.repository}</p>
-                    <details className="marketplace-agents">
-                      <summary>
-                        <span>Agents</span>
-                        <span className="marketplace-agent-count">
-                          {marketplace.agents.length === 0
-                            ? 'No trusted agents cached'
-                            : `${marketplace.agents.length} trusted agent${
-                                marketplace.agents.length === 1 ? '' : 's'
-                              }`}
-                        </span>
-                      </summary>
-                      {marketplace.agents.length === 0 ? (
-                        <p className="marketplace-agent-empty">
-                          No trusted marketplace agents are cached yet.
-                        </p>
-                      ) : (
-                        <ul className="marketplace-agent-items">
-                          {marketplace.agents.map((agent) => (
-                            <li key={`${marketplace.id}-${agent.name}`} className="marketplace-agent-item">
-                              <strong>{agent.name}</strong>
-                              <p>{agent.description ?? 'No frontmatter description provided.'}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </details>
-                  </article>
-                ))}
+                {marketplaces.map((marketplace) => {
+                  const filteredAgents = filterMarketplaceAgents(marketplace);
+
+                  return (
+                    <article key={marketplace.id} className="marketplace-card">
+                      <header>
+                        <strong>{marketplace.name}</strong>
+                        <code>{marketplace.id}</code>
+                      </header>
+                      <p className="marketplace-repository">{marketplace.repository}</p>
+                      <details className="marketplace-agents">
+                        <summary>
+                          <span>Agents</span>
+                          <span className="marketplace-agent-count">
+                            {marketplace.agents.length === 0
+                              ? 'No trusted agents cached'
+                              : `${marketplace.agents.length} trusted agent${
+                                  marketplace.agents.length === 1 ? '' : 's'
+                                }`}
+                          </span>
+                        </summary>
+                        {marketplace.agents.length === 0 ? (
+                          <p className="marketplace-agent-empty">
+                            No trusted marketplace agents are cached yet.
+                          </p>
+                        ) : (
+                          <>
+                            <label className="marketplace-agent-filter">
+                              Filter agents by name
+                              <input
+                                value={marketplaceAgentFilters[marketplace.id] ?? ''}
+                                placeholder="Type part of an agent name"
+                                onChange={(event) =>
+                                  setMarketplaceAgentFilters((current) => ({
+                                    ...current,
+                                    [marketplace.id]: event.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                            {filteredAgents.length === 0 ? (
+                              <p className="marketplace-agent-empty">
+                                No agents match the current filter.
+                              </p>
+                            ) : (
+                              <ul className="marketplace-agent-items">
+                                {filteredAgents.map((agent) => (
+                                  <li
+                                    key={`${marketplace.id}-${agent.name}`}
+                                    className="marketplace-agent-item"
+                                  >
+                                    <strong>{agent.name}</strong>
+                                    <p>{agent.description ?? 'No frontmatter description provided.'}</p>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </>
+                        )}
+                      </details>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
