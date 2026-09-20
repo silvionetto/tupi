@@ -338,9 +338,15 @@ impl AppState {
     fn normalize_profile(&self, profile: Profile) -> Result<Profile> {
         let id = profile.id.trim().to_string();
         let name = profile.name.trim().to_string();
+        let project_location = Self::normalize_optional_text(profile.project_location);
         if name.is_empty() {
             return Err(crate::error::TupiError::ProfileValidation(
                 "project display name is required".into(),
+            ));
+        }
+        if project_location.is_none() {
+            return Err(crate::error::TupiError::ProfileValidation(
+                "project location is required".into(),
             ));
         }
 
@@ -351,6 +357,7 @@ impl AppState {
                 id
             },
             name,
+            project_location,
             description: Self::normalize_optional_text(profile.description),
             enabled: profile.enabled,
             version: Self::normalize_optional_text(profile.version),
@@ -808,6 +815,7 @@ mod tests {
             .upsert_profile(crate::profile::Profile {
                 id: String::new(),
                 name: String::from(" myProject "),
+                project_location: Some(String::from("  D:\\workspace\\myProject  ")),
                 description: Some(String::from("  Example repo  ")),
                 enabled: true,
                 version: Some(String::from("1")),
@@ -818,12 +826,20 @@ mod tests {
 
         assert!(!saved.id.is_empty());
         assert_eq!(saved.name, "myProject");
+        assert_eq!(
+            saved.project_location.as_deref(),
+            Some("D:\\workspace\\myProject")
+        );
         assert_eq!(saved.description.as_deref(), Some("Example repo"));
         assert_eq!(saved.selected_assets, vec![String::from("reviewer")]);
 
         let profiles = state.read_profiles().unwrap();
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].id, saved.id);
+        assert_eq!(
+            profiles[0].project_location.as_deref(),
+            Some("D:\\workspace\\myProject")
+        );
         assert_eq!(profiles[0].description.as_deref(), Some("Example repo"));
 
         fs::remove_dir_all(root).unwrap();
@@ -848,9 +864,33 @@ mod tests {
 
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].id, "legacy-profile");
+        assert_eq!(profiles[0].project_location, None);
         assert_eq!(profiles[0].description, None);
 
         drop(connection);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_profile_without_project_location() {
+        let root = unique_temp_dir("missing-project-location");
+        let state = make_test_state(&root);
+
+        let error = state
+            .upsert_profile(crate::profile::Profile {
+                id: String::new(),
+                name: String::from("myProject"),
+                project_location: None,
+                description: None,
+                enabled: true,
+                version: Some(String::from("1")),
+                catalog_revision: Some(String::from("catalog-1")),
+                selected_assets: Vec::new(),
+            })
+            .unwrap_err();
+
+        assert!(error.to_string().contains("project location is required"));
+
         fs::remove_dir_all(root).unwrap();
     }
 

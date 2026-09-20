@@ -11,6 +11,11 @@
     "distDir": "../dist"
   },
   "tauri": {
+    "allowlist": {
+      "dialog": {
+        "open": true
+      }
+    },
     "windows": [
       {
         "title": "Tupi",

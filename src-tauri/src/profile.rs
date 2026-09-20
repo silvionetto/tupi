@@ -5,6 +5,8 @@ pub struct Profile {
     pub id: String,
     pub name: String,
     #[serde(default)]
+    pub project_location: Option<String>,
+    #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
     pub enabled: bool,

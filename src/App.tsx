@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { open } from '@tauri-apps/api/dialog';
 import { invoke } from '@tauri-apps/api/tauri';
 
 type CatalogSummary = {
@@ -26,6 +27,7 @@ type MarketplaceOption = {
 type Profile = {
   id: string;
   name: string;
+  project_location: string | null;
   description: string | null;
   enabled: boolean;
   version: string | null;
@@ -40,6 +42,7 @@ type ProjectProfileDefaults = {
 type ProfileFormState = {
   id: string;
   name: string;
+  project_location: string;
   description: string;
   enabled: boolean;
   version: string | null;
@@ -87,6 +90,7 @@ function createProfileForm(
   return {
     id: '',
     name: displayName,
+    project_location: '',
     description: '',
     enabled: true,
     version: '1',
@@ -99,12 +103,21 @@ function profileToForm(profile: Profile): ProfileFormState {
   return {
     id: profile.id,
     name: profile.name,
+    project_location: profile.project_location ?? '',
     description: profile.description ?? '',
     enabled: profile.enabled,
     version: profile.version,
     catalogRevision: profile.catalogRevision,
     selected_assets: profile.selected_assets,
   };
+}
+
+function guessProjectName(projectLocation: string) {
+  const segments = projectLocation
+    .split(/[\\/]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  return segments.length === 0 ? null : segments[segments.length - 1];
 }
 
 export default function App() {
@@ -114,6 +127,7 @@ export default function App() {
   const [marketplaces, setMarketplaces] = useState<MarketplaceOption[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentView, setCurrentView] = useState<'home' | 'about'>('home');
+  const [isTauriRuntime, setIsTauriRuntime] = useState(false);
   const [defaultProjectDisplayName, setDefaultProjectDisplayName] =
     useState(fallbackProjectDefaults.displayName);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -166,6 +180,47 @@ export default function App() {
     setStatus(`Editing project ${profile.id}.`);
   }
 
+  function updateProjectLocation(projectLocation: string) {
+    setProfileForm((current) => {
+      const guessedName = guessProjectName(projectLocation);
+      const previousGuess = guessProjectName(current.project_location);
+      const shouldReplaceName =
+        current.name.trim().length === 0 ||
+        current.name === previousGuess ||
+        (current.project_location.trim().length === 0 &&
+          current.name === defaultProjectDisplayName);
+
+      return {
+        ...current,
+        project_location: projectLocation,
+        name: guessedName && shouldReplaceName ? guessedName : current.name,
+      };
+    });
+  }
+
+  async function chooseProjectLocation() {
+    if (!isTauriRuntime) {
+      setStatus('Folder selection is available only in the Tauri desktop app.');
+      return;
+    }
+
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: normalizeOptionalText(profileForm.project_location) ?? undefined,
+      });
+
+      if (typeof selected === 'string') {
+        updateProjectLocation(selected);
+        setStatus(`Selected project folder ${selected}.`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(`Could not open the folder picker: ${message}`);
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
       let runningInsideTauri = true;
@@ -173,6 +228,7 @@ export default function App() {
 
       try {
         const state = await invoke<CatalogState>('get_catalog_state');
+        setIsTauriRuntime(true);
         setSummary(state.summary);
         setDetails(state);
         catalogRevision = state.summary.catalogRevision;
@@ -181,6 +237,7 @@ export default function App() {
         );
       } catch {
         runningInsideTauri = false;
+        setIsTauriRuntime(false);
         setSummary(fallbackSummary);
         setDetails(fallbackDetails);
         setMarketplaces(fallbackMarketplaces);
@@ -204,9 +261,16 @@ export default function App() {
   }, []);
 
   async function saveProfile() {
+    const projectLocation = normalizeOptionalText(profileForm.project_location);
+    if (projectLocation === null) {
+      setStatus('Select the project repository root before saving.');
+      return;
+    }
+
     const profile: Profile = {
       id: profileForm.id,
       name: profileForm.name.trim(),
+      project_location: projectLocation,
       description: normalizeOptionalText(profileForm.description),
       enabled: profileForm.enabled,
       version: profileForm.version,
@@ -278,8 +342,8 @@ export default function App() {
           <section className="panel">
             <h2>Project profiles</h2>
             <p className="lede">
-              Each project keeps a database-backed ID, a repo-based display name, and an optional
-              description.
+              Each project keeps a database-backed ID, the repository root location, a guessed
+              display name, and an optional description.
             </p>
             <div className="form-grid">
               <label>
@@ -290,6 +354,34 @@ export default function App() {
                   placeholder="Generated when saved"
                 />
                 <p className="field-hint">Generated by the embedded database when you save.</p>
+              </label>
+              <label>
+                Project location
+                <div className="input-with-action">
+                  <input
+                    value={profileForm.project_location}
+                    placeholder="Choose the repository root folder"
+                    onChange={(event) => updateProjectLocation(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => void chooseProjectLocation()}
+                    disabled={!isTauriRuntime}
+                    title={
+                      isTauriRuntime
+                        ? 'Open the system folder picker'
+                        : 'Folder selection requires the Tauri desktop runtime'
+                    }
+                  >
+                    Select folder
+                  </button>
+                </div>
+                <p className="field-hint">
+                  {isTauriRuntime
+                    ? 'Save the repository root here. Tupi uses the folder name to guess the project name.'
+                    : 'Folder selection is only available in the Tauri desktop runtime. You can still paste the repository root manually.'}
+                </p>
               </label>
               <label>
                 Display name
@@ -329,6 +421,7 @@ export default function App() {
                       <strong>{profile.name}</strong>
                       <code>{profile.id}</code>
                     </header>
+                    <p>{profile.project_location ?? 'No project location saved.'}</p>
                     <p>{profile.description ?? 'No description yet.'}</p>
                     <div className="actions">
                       <button type="button" className="secondary" onClick={() => editProfile(profile)}>
