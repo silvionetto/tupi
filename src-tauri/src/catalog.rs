@@ -163,6 +163,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn bundled_catalog_is_minimal_and_valid() {
+        let contents = include_str!("../../catalog/trusted-assets.yaml");
+
+        let catalog = load_catalog_from_str(contents).expect("bundled catalog should validate");
+
+        assert_eq!(catalog.version, 1);
+        assert_eq!(catalog.marketplaces.len(), 1);
+        assert!(catalog.agents.is_empty());
+        assert!(catalog.prompts.is_empty());
+        assert!(catalog.skills.is_empty());
+        assert!(catalog.instructions.is_empty());
+
+        let marketplace = &catalog.marketplaces[0];
+        assert_eq!(marketplace.id, "awesome-copilot");
+        assert_eq!(marketplace.name, "awesome-copilot");
+        assert_eq!(marketplace.repository, "https://github.com/github/awesome-copilot");
+        assert_eq!(marketplace.branch, "main");
+        assert_eq!(marketplace.revision, "4f4796f0bf30e105700f97ed8408c12b6aa95e06");
+    }
+
+    #[test]
     fn rejects_duplicate_marketplaces() {
         let catalog = TrustedCatalog {
             version: 1,

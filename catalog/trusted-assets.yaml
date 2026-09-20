@@ -1,37 +1,9 @@
 version: 1
-catalogRevision: 0000000000000000000000000000000000000000
+catalogRevision: 8e6912531e2dc22d6c96dde0afd2e399eb2d9dd3
 
 marketplaces:
   - id: awesome-copilot
-    name: Awesome Copilot Marketplace
+    name: awesome-copilot
     repository: https://github.com/github/awesome-copilot
     branch: main
-    revision: 0000000000000000000000000000000000000000
-
-agents:
-  - id: planner.agent
-    marketplace: awesome-copilot
-    path: agents/planner.agent.md
-    version: 1.2.0
-    revision: 0000000000000000000000000000000000000000
-
-prompts:
-  - id: summarize-code
-    marketplace: awesome-copilot
-    path: prompts/summarize-code
-    version: 1.0.0
-    revision: 0000000000000000000000000000000000000000
-
-skills:
-  - id: typescript
-    marketplace: awesome-copilot
-    path: skills/typescript
-    version: 1.0.0
-    revision: 0000000000000000000000000000000000000000
-
-instructions:
-  - id: secure-coding
-    marketplace: awesome-copilot
-    path: instructions/secure-coding
-    version: 1.0.0
-    revision: 0000000000000000000000000000000000000000
+    revision: 4f4796f0bf30e105700f97ed8408c12b6aa95e06

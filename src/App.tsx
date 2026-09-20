@@ -42,10 +42,27 @@ type Profile = {
 
 const fallbackSummary: CatalogSummary = {
   version: 1,
-  catalogRevision: 'uninitialized',
-  marketplaces: 0,
+  catalogRevision: '8e6912531e2dc22d6c96dde0afd2e399eb2d9dd3',
+  marketplaces: 1,
   assets: 0,
 };
+
+const fallbackDetails: CatalogState = {
+  summary: fallbackSummary,
+  trust_status: 'Trusted',
+  source_repository: null,
+  source_branch: 'main',
+  refreshed_at: null,
+  stale: true,
+};
+
+const fallbackMarketplaces: MarketplaceOption[] = [
+  {
+    id: 'awesome-copilot',
+    name: 'awesome-copilot',
+    repository: 'https://github.com/github/awesome-copilot',
+  },
+];
 
 export default function App() {
   const [summary, setSummary] = useState<CatalogSummary>(fallbackSummary);
@@ -90,6 +107,8 @@ export default function App() {
 
   useEffect(() => {
     const load = async () => {
+      let runningInsideTauri = true;
+
       try {
         const state = await invoke<CatalogState>('get_catalog_state');
         setSummary(state.summary);
@@ -100,10 +119,17 @@ export default function App() {
             : `Loaded trusted catalog cache from ${state.refreshed_at ?? 'startup'}.`,
         );
       } catch {
-        setStatus('Running outside Tauri; showing local scaffold state.');
+        runningInsideTauri = false;
+        setSummary(fallbackSummary);
+        setDetails(fallbackDetails);
+        setMarketplaces(fallbackMarketplaces);
+        setProfiles([]);
+        setStatus('Running outside Tauri; showing bundled scaffold catalog.');
       }
 
-      await Promise.all([loadMarketplaces(), loadProfiles()]);
+      if (runningInsideTauri) {
+        await Promise.all([loadMarketplaces(), loadProfiles()]);
+      }
     };
 
     void load();
