@@ -43,6 +43,21 @@ impl AppState {
                 error_message TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS installed_marketplaces (
+                directory_location TEXT PRIMARY KEY,
+                marketplace_id TEXT NOT NULL,
+                marketplace_name TEXT NOT NULL,
+                repository TEXT,
+                trust_status TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS installed_marketplace_scan_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                scan_root TEXT NOT NULL,
+                refreshed_at TEXT,
+                error_message TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS marketplace_agents (
                 marketplace_id TEXT NOT NULL,
                 agent_name TEXT NOT NULL,
@@ -213,6 +228,8 @@ impl AppState {
         )?;
         tx.commit()?;
         self.refresh_marketplace_agents()?;
+        let _ = self.refresh_installed_marketplaces();
+        let _ = self.refresh_global_agents();
 
         Ok(RefreshRecord {
             summary,

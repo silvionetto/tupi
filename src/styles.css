@@ -143,6 +143,10 @@ dd {
   gap: 1rem;
 }
 
+.home-section + .home-section {
+  margin-top: 1.5rem;
+}
+
 .marketplace-list,
 .agent-list {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -261,7 +265,8 @@ dd {
 }
 
 .marketplace-agent-item p,
-.marketplace-agent-empty {
+.marketplace-agent-empty,
+.marketplace-card p {
   margin: 0.45rem 0 0;
   color: #cbd5e1;
 }

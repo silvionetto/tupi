@@ -12,6 +12,10 @@ pub enum TupiError {
     AgentRead(String),
     #[error("agent validation failed: {0}")]
     AgentValidation(String),
+    #[error("failed to read installed plugin: {0}")]
+    PluginRead(String),
+    #[error("installed plugin validation failed: {0}")]
+    PluginValidation(String),
     #[error("profile validation failed: {0}")]
     ProfileValidation(String),
     #[error("sqlite error: {0}")]

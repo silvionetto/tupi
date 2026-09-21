@@ -1,5 +1,6 @@
 mod catalog_store;
 mod global_agents;
+mod installed_marketplaces;
 mod marketplace_agents;
 mod profiles_store;
 mod repo_sync;
@@ -75,6 +76,23 @@ pub struct GlobalAgentsState {
     pub error_message: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledMarketplaceRecord {
+    pub id: String,
+    pub name: String,
+    pub directory_location: String,
+    pub repository: Option<String>,
+    pub trust_status: TrustStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledMarketplacesState {
+    pub marketplaces: Vec<InstalledMarketplaceRecord>,
+    pub scan_root: String,
+    pub refreshed_at: Option<String>,
+    pub error_message: Option<String>,
+}
+
 impl AppState {
     pub fn new() -> Result<Self> {
         let root = Self::resolve_workspace_root();
@@ -115,7 +133,11 @@ impl AppState {
 
     fn find_workspace_root_from(start: &Path) -> Option<PathBuf> {
         for candidate in start.ancestors() {
-            if candidate.join("catalog").join("trusted-assets.yaml").is_file() {
+            if candidate
+                .join("catalog")
+                .join("trusted-assets.yaml")
+                .is_file()
+            {
                 return Some(candidate.to_path_buf());
             }
         }
@@ -147,13 +169,29 @@ impl AppState {
     }
 
     fn resolve_global_agents_root(&self) -> Result<PathBuf> {
-        Ok(Self::resolve_user_home_dir()?.join(".copilot").join("agents"))
+        Self::resolve_copilot_child_dir("agents")
     }
 
     fn default_global_agents_root(&self) -> PathBuf {
+        Self::default_copilot_child_dir("agents")
+    }
+
+    fn resolve_installed_plugins_root(&self) -> Result<PathBuf> {
+        Self::resolve_copilot_child_dir("installed-plugins")
+    }
+
+    fn default_installed_plugins_root(&self) -> PathBuf {
+        Self::default_copilot_child_dir("installed-plugins")
+    }
+
+    fn resolve_copilot_child_dir(child: &str) -> Result<PathBuf> {
+        Ok(Self::resolve_user_home_dir()?.join(".copilot").join(child))
+    }
+
+    fn default_copilot_child_dir(child: &str) -> PathBuf {
         Self::resolve_user_home_dir()
-            .map(|home| home.join(".copilot").join("agents"))
-            .unwrap_or_else(|_| PathBuf::from(".copilot").join("agents"))
+            .map(|home| home.join(".copilot").join(child))
+            .unwrap_or_else(|_| PathBuf::from(".copilot").join(child))
     }
 
     fn resolve_user_home_dir() -> Result<PathBuf> {
@@ -244,7 +282,11 @@ mod tests {
         let root = crate::state::test_support::unique_temp_dir("workspace-root");
         fs::create_dir_all(root.join("catalog")).unwrap();
         fs::create_dir_all(root.join("src-tauri").join("src")).unwrap();
-        fs::write(root.join("catalog").join("trusted-assets.yaml"), "version: 1").unwrap();
+        fs::write(
+            root.join("catalog").join("trusted-assets.yaml"),
+            "version: 1",
+        )
+        .unwrap();
 
         let resolved = AppState::find_workspace_root_from(&root.join("src-tauri").join("src"));
 

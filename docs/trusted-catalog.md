@@ -131,6 +131,26 @@ filename-derived name, optional frontmatter `description`, and a trusted
 status. This inventory is for browsing trusted marketplace content; it is
 separate from the local global-agent scan under `.copilot/agents`.
 
+## Installed Copilot marketplaces on the Home page
+
+The desktop app may inspect the current user's Copilot installed-plugin folder
+under `.copilot/installed-plugins`. Each direct child directory under that root
+is treated as one installed marketplace record for Home-page inventory.
+
+Those local directories are **not** trusted merely because they exist on the
+machine. When Tupi discovers an installed marketplace directory, it persists the
+marketplace metadata in SQLite and evaluates trust in the Rust core. A local
+installed marketplace is trusted only when its directory name matches a trusted
+catalog marketplace ID.
+
+If Tupi cannot make that catalog match, the installed marketplace must remain
+untrusted. The UI may display the result, but it must not upgrade or infer
+trust on its own.
+
+Nested plugin directories inside each installed marketplace are out of scope for
+this first inventory pass and should not change the marketplace trust result by
+themselves.
+
 ## Global Copilot agents on the Home page
 
 The desktop app may also inspect the current user's global Copilot agent folder

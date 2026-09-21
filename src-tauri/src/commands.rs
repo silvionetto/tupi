@@ -1,6 +1,7 @@
 use crate::profile::{Profile, ProjectProfileDefaults};
 use crate::state::{
-    AppState, CatalogState, GlobalAgentsState, MarketplaceOption, RefreshRecord,
+    AppState, CatalogState, GlobalAgentsState, InstalledMarketplacesState, MarketplaceOption,
+    RefreshRecord,
 };
 use tauri::State;
 
@@ -37,7 +38,18 @@ pub fn list_profiles(state: State<'_, AppState>) -> std::result::Result<Vec<Prof
 pub fn get_global_agents_state(
     state: State<'_, AppState>,
 ) -> std::result::Result<GlobalAgentsState, String> {
-    state.load_global_agents_state().map_err(|err| err.to_string())
+    state
+        .load_global_agents_state()
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn get_installed_marketplaces_state(
+    state: State<'_, AppState>,
+) -> std::result::Result<InstalledMarketplacesState, String> {
+    state
+        .load_installed_marketplaces_state()
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -58,5 +70,7 @@ pub fn delete_profile(
     state: State<'_, AppState>,
     profile_id: String,
 ) -> std::result::Result<(), String> {
-    state.delete_profile(&profile_id).map_err(|err| err.to_string())
+    state
+        .delete_profile(&profile_id)
+        .map_err(|err| err.to_string())
 }
