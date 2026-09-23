@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/silvionetto/tupi/compare/v1.0.2...v1.1.0) (2026-09-23)
+
+### Features
+
+* **core:** scan installed Copilot marketplaces on startup ([fba2b2f](https://github.com/silvionetto/tupi/commit/fba2b2f6bfa2692b06992ed88013eec5691230a3))
+
 ## [1.0.2](https://github.com/silvionetto/tupi/compare/v1.0.1...v1.0.2) (2026-09-20)
 
 ### Bug Fixes
