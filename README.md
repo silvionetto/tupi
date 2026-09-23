@@ -32,6 +32,17 @@ Tupi also syncs trusted marketplace workspaces into `.tupi/catalog-cache/marketp
 
 If no repository is configured, the app falls back to the bundled `catalog/trusted-assets.yaml` sample and marks the state as local scaffold data.
 
+## Development
+
+Use one of these commands from the repository root to run the app during development:
+
+- `npm run dev` — starts the Vite frontend shell only. This is useful for UI work that does not require the Tauri desktop backend.
+- `npm run desktop:dev` — starts the desktop app with the Tauri Rust backend attached. This is the recommended option when working on catalog refresh, profile persistence, or marketplace discovery.
+
+If you need a full backend build check as well, run:
+
+- `cargo build --manifest-path src-tauri/Cargo.toml`
+
 ## Contributor conventions
 
 - Use **Conventional Commits** for PR titles and future commit messages: `<type>(<scope>): <summary>`
