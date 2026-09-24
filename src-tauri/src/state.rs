@@ -83,6 +83,14 @@ pub struct InstalledMarketplaceRecord {
     pub directory_location: String,
     pub repository: Option<String>,
     pub trust_status: TrustStatus,
+    #[serde(default)]
+    pub plugins: Vec<InstalledPluginRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledPluginRecord {
+    pub name: String,
+    pub directory_location: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

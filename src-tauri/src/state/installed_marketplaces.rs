@@ -1,4 +1,6 @@
-use super::{AppState, InstalledMarketplaceRecord, InstalledMarketplacesState};
+use super::{
+    AppState, InstalledMarketplaceRecord, InstalledMarketplacesState, InstalledPluginRecord,
+};
 use crate::catalog::{load_catalog_from_str, Marketplace};
 use crate::error::Result;
 use crate::trust::TrustStatus;
@@ -56,12 +58,45 @@ impl AppState {
                 directory_location: row.get(2)?,
                 repository: row.get(3)?,
                 trust_status: Self::trust_status_from_str(&row.get::<_, String>(4)?),
+                plugins: Vec::new(),
             })
         })?;
 
         let mut marketplaces = Vec::new();
         for row in rows {
             marketplaces.push(row?);
+        }
+
+        let mut plugin_stmt = connection.prepare(
+            r#"
+            SELECT marketplace_directory_location, plugin_name, plugin_directory_location
+            FROM installed_marketplace_plugins
+            ORDER BY lower(marketplace_directory_location) ASC, lower(plugin_name) ASC, lower(plugin_directory_location) ASC
+            "#,
+        )?;
+        let plugin_rows = plugin_stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                InstalledPluginRecord {
+                    name: row.get(1)?,
+                    directory_location: row.get(2)?,
+                },
+            ))
+        })?;
+
+        let mut plugins_by_marketplace = BTreeMap::new();
+        for row in plugin_rows {
+            let (marketplace_directory_location, plugin) = row?;
+            plugins_by_marketplace
+                .entry(marketplace_directory_location)
+                .or_insert_with(Vec::new)
+                .push(plugin);
+        }
+
+        for marketplace in &mut marketplaces {
+            marketplace.plugins = plugins_by_marketplace
+                .remove(&marketplace.directory_location)
+                .unwrap_or_default();
         }
 
         let scan_state = connection
@@ -156,6 +191,7 @@ impl AppState {
                 directory_location: path.display().to_string(),
                 repository,
                 trust_status,
+                plugins: Self::collect_installed_marketplace_plugins(&path)?,
             });
         }
 
@@ -171,6 +207,68 @@ impl AppState {
         });
 
         Ok(marketplaces)
+    }
+
+    fn collect_installed_marketplace_plugins(
+        marketplace_root: &Path,
+    ) -> Result<Vec<InstalledPluginRecord>> {
+        if !marketplace_root.exists() {
+            return Ok(Vec::new());
+        }
+        if !marketplace_root.is_dir() {
+            return Err(crate::error::TupiError::PluginRead(format!(
+                "{} is not a directory",
+                marketplace_root.display()
+            )));
+        }
+
+        let mut plugins = Vec::new();
+        let entries = fs::read_dir(marketplace_root).map_err(|err| {
+            crate::error::TupiError::PluginRead(format!("{} ({})", marketplace_root.display(), err))
+        })?;
+
+        for entry in entries {
+            let entry =
+                entry.map_err(|err| crate::error::TupiError::PluginRead(err.to_string()))?;
+            let path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|err| crate::error::TupiError::PluginRead(err.to_string()))?;
+
+            if !file_type.is_dir() {
+                continue;
+            }
+
+            let plugin_name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    crate::error::TupiError::PluginValidation(format!(
+                        "installed plugin {} must have a valid directory name",
+                        path.display()
+                    ))
+                })?;
+
+            plugins.push(InstalledPluginRecord {
+                name: plugin_name,
+                directory_location: path.display().to_string(),
+            });
+        }
+
+        plugins.sort_by(|left, right| {
+            left.name
+                .to_ascii_lowercase()
+                .cmp(&right.name.to_ascii_lowercase())
+                .then_with(|| {
+                    left.directory_location
+                        .to_ascii_lowercase()
+                        .cmp(&right.directory_location.to_ascii_lowercase())
+                })
+        });
+
+        Ok(plugins)
     }
 
     fn load_catalog_marketplaces_by_id(&self) -> Result<BTreeMap<String, Marketplace>> {
@@ -194,6 +292,7 @@ impl AppState {
         let mut connection = self.open()?;
         let tx = connection.transaction()?;
         tx.execute("DELETE FROM installed_marketplaces", [])?;
+        tx.execute("DELETE FROM installed_marketplace_plugins", [])?;
 
         for marketplace in marketplaces {
             tx.execute(
@@ -211,6 +310,22 @@ impl AppState {
                     Self::trust_status_label(&marketplace.trust_status)
                 ],
             )?;
+
+            for plugin in &marketplace.plugins {
+                    tx.execute(
+                        r#"
+                        INSERT INTO installed_marketplace_plugins (
+                            marketplace_directory_location, plugin_name, plugin_directory_location
+                        )
+                        VALUES (?1, ?2, ?3)
+                        "#,
+                        params![
+                            &marketplace.directory_location,
+                            &plugin.name,
+                            &plugin.directory_location,
+                        ],
+                    )?;
+            }
         }
 
         tx.execute(
@@ -283,7 +398,14 @@ agents: []
             .join("installed-plugins");
         fs::create_dir_all(installed_root.join("awesome-copilot")).unwrap();
         fs::create_dir_all(installed_root.join("local-only")).unwrap();
-        fs::create_dir_all(installed_root.join("awesome-copilot").join("plugins")).unwrap();
+        fs::create_dir_all(
+            installed_root
+                .join("awesome-copilot")
+                .join("plugins")
+                .join("nested"),
+        )
+        .unwrap();
+        fs::create_dir_all(installed_root.join("awesome-copilot").join("editor")).unwrap();
 
         let marketplaces = state
             .collect_installed_marketplaces(&installed_root)
@@ -297,10 +419,14 @@ agents: []
             Some("https://github.com/github/awesome-copilot")
         );
         assert_eq!(marketplaces[0].trust_status, TrustStatus::Trusted);
+        assert_eq!(marketplaces[0].plugins.len(), 2);
+        assert_eq!(marketplaces[0].plugins[0].name, "editor");
+        assert_eq!(marketplaces[0].plugins[1].name, "plugins");
         assert_eq!(marketplaces[1].id, "local-only");
         assert_eq!(marketplaces[1].name, "local-only");
         assert_eq!(marketplaces[1].repository, None);
         assert_eq!(marketplaces[1].trust_status, TrustStatus::Untrusted);
+        assert!(marketplaces[1].plugins.is_empty());
 
         fs::remove_dir_all(root).unwrap();
     }
@@ -331,7 +457,12 @@ agents: []
             .join("user-home")
             .join(".copilot")
             .join("installed-plugins");
-        fs::create_dir_all(installed_root.join("awesome-copilot")).unwrap();
+        fs::create_dir_all(
+            installed_root
+                .join("awesome-copilot")
+                .join("assistant"),
+        )
+        .unwrap();
 
         let marketplaces = state
             .collect_installed_marketplaces(&installed_root)
@@ -349,6 +480,16 @@ agents: []
         assert_eq!(stored.marketplaces[0].id, "awesome-copilot");
         assert_eq!(stored.marketplaces[0].name, "awesome-copilot");
         assert_eq!(stored.marketplaces[0].trust_status, TrustStatus::Untrusted);
+        assert_eq!(stored.marketplaces[0].plugins.len(), 1);
+        assert_eq!(stored.marketplaces[0].plugins[0].name, "assistant");
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].directory_location,
+            installed_root
+                .join("awesome-copilot")
+                .join("assistant")
+                .display()
+                .to_string()
+        );
 
         fs::remove_dir_all(root).unwrap();
     }

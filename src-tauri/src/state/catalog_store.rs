@@ -51,6 +51,13 @@ impl AppState {
                 trust_status TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS installed_marketplace_plugins (
+                marketplace_directory_location TEXT NOT NULL,
+                plugin_name TEXT NOT NULL,
+                plugin_directory_location TEXT NOT NULL,
+                PRIMARY KEY (marketplace_directory_location, plugin_directory_location)
+            );
+
             CREATE TABLE IF NOT EXISTS installed_marketplace_scan_state (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 scan_root TEXT NOT NULL,

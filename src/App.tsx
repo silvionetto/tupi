@@ -62,6 +62,12 @@ type InstalledMarketplace = {
   directory_location: string;
   repository: string | null;
   trust_status: 'Trusted' | 'Untrusted' | 'Stale' | 'Invalid' | 'Missing';
+  plugins: InstalledPlugin[];
+};
+
+type InstalledPlugin = {
+  name: string;
+  directory_location: string;
 };
 
 type InstalledMarketplacesState = {
@@ -243,6 +249,10 @@ export default function App() {
   function currentCatalogRevision() {
     return details?.summary.catalogRevision ?? summary.catalogRevision;
   }
+
+  const installedMarketplacesWithPlugins = installedMarketplacesState.marketplaces.filter(
+    (marketplace) => marketplace.plugins.length > 0,
+  );
 
   function filterMarketplaceAgents(marketplace: MarketplaceOption) {
     const filterText = marketplaceAgentFilters[marketplace.id]?.trim().toLocaleLowerCase() ?? '';
@@ -449,14 +459,14 @@ export default function App() {
                       Startup scan reported an error: {installedMarketplacesState.error_message}
                     </p>
                   ) : null}
-                  {installedMarketplacesState.marketplaces.length === 0 ? (
+                  {installedMarketplacesWithPlugins.length === 0 ? (
                     <p className="status">
-                      No installed Copilot marketplaces were found under{' '}
+                      No installed plugins were found under{' '}
                       {installedMarketplacesState.scan_root}.
                     </p>
                   ) : (
                     <div className="marketplace-list">
-                      {installedMarketplacesState.marketplaces.map((marketplace) => (
+                      {installedMarketplacesWithPlugins.map((marketplace) => (
                         <article key={marketplace.directory_location} className="marketplace-card">
                           <header>
                             <div>
@@ -479,6 +489,26 @@ export default function App() {
                           <p className="marketplace-repository">
                             {marketplace.repository ?? 'Not matched to a trusted catalog marketplace.'}
                           </p>
+                          <section className="marketplace-plugins" aria-label="Installed plugins">
+                            <div className="marketplace-plugin-heading">
+                              <strong>Installed plugins</strong>
+                              <span className="marketplace-plugin-count">
+                                {marketplace.plugins.length} plugin
+                                {marketplace.plugins.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                            <ul className="marketplace-plugin-items">
+                              {marketplace.plugins.map((plugin) => (
+                                <li
+                                  key={plugin.directory_location}
+                                  className="marketplace-plugin-item"
+                                >
+                                  <strong>{plugin.name}</strong>
+                                  <p className="agent-path">{plugin.directory_location}</p>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
                         </article>
                       ))}
                     </div>

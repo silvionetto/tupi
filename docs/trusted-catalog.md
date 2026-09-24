@@ -143,6 +143,11 @@ marketplace metadata in SQLite and evaluates trust in the Rust core. A local
 installed marketplace is trusted only when its directory name matches a trusted
 catalog marketplace ID.
 
+The Home page groups each installed marketplace with its **direct child plugin
+folders** from the same marketplace directory. Tupi does not recurse into deeper
+subfolders for this inventory pass, and it hides marketplace panels that do not
+contain any installed plugins.
+
 If Tupi cannot make that catalog match, the installed marketplace must remain
 untrusted. The UI may display the result, but it must not upgrade or infer
 trust on its own.
