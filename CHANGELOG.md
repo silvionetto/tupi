@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/silvionetto/tupi/compare/v1.1.0...v1.2.0) (2026-09-24)
+
+### Features
+
+* **ui:** show installed plugins per marketplace ([fdb987a](https://github.com/silvionetto/tupi/commit/fdb987aa6152a3a3961fd877e93eabd36c4412a7))
+
 ## [1.1.0](https://github.com/silvionetto/tupi/compare/v1.0.2...v1.1.0) (2026-09-23)
 
 ### Features
