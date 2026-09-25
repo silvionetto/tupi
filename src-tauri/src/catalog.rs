@@ -169,7 +169,7 @@ mod tests {
         let catalog = load_catalog_from_str(contents).expect("bundled catalog should validate");
 
         assert_eq!(catalog.version, 1);
-        assert_eq!(catalog.marketplaces.len(), 1);
+        assert_eq!(catalog.marketplaces.len(), 2);
         assert!(catalog.agents.is_empty());
         assert!(catalog.prompts.is_empty());
         assert!(catalog.skills.is_empty());
@@ -181,6 +181,13 @@ mod tests {
         assert_eq!(marketplace.repository, "https://github.com/github/awesome-copilot");
         assert_eq!(marketplace.branch, "main");
         assert_eq!(marketplace.revision, "4f4796f0bf30e105700f97ed8408c12b6aa95e06");
+
+        let marketplace = &catalog.marketplaces[1];
+        assert_eq!(marketplace.id, "sn-copilot-plugin");
+        assert_eq!(marketplace.name, "sn-copilot-plugin");
+        assert_eq!(marketplace.repository, "https://github.com/silvionetto/sn-copilot-plugin");
+        assert_eq!(marketplace.branch, "main");
+        assert_eq!(marketplace.revision, "e9e69a334a3002f1b199d9b2cacc76dff249ef7b");
     }
 
     #[test]

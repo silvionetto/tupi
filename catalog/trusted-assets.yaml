@@ -7,3 +7,8 @@ marketplaces:
     repository: https://github.com/github/awesome-copilot
     branch: main
     revision: 4f4796f0bf30e105700f97ed8408c12b6aa95e06
+  - id: sn-copilot-plugin
+    name: sn-copilot-plugin
+    repository: https://github.com/silvionetto/sn-copilot-plugin
+    branch: main
+    revision: e9e69a334a3002f1b199d9b2cacc76dff249ef7b
