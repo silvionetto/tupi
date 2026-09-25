@@ -1,3 +1,9 @@
+## [1.4.0](https://github.com/silvionetto/tupi/compare/v1.3.0...v1.4.0) (2026-09-25)
+
+### Features
+
+* **ui:** show skills from installed plugins ([7bb38e6](https://github.com/silvionetto/tupi/commit/7bb38e6e7719ee1bf2147e41996301697c749751))
+
 ## [1.3.0](https://github.com/silvionetto/tupi/compare/v1.2.0...v1.3.0) (2026-09-25)
 
 ### Features
