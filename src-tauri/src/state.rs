@@ -91,6 +91,14 @@ pub struct InstalledMarketplaceRecord {
 pub struct InstalledPluginRecord {
     pub name: String,
     pub directory_location: String,
+    #[serde(default)]
+    pub skills: Vec<InstalledSkillRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledSkillRecord {
+    pub name: String,
+    pub directory_location: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

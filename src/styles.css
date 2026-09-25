@@ -143,6 +143,17 @@ dd {
   gap: 1rem;
 }
 
+.installed-marketplace-list,
+.installed-skill-groups {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.installed-skill-groups {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .home-section + .home-section {
   margin-top: 1.5rem;
 }
@@ -249,6 +260,27 @@ dd {
 .marketplace-plugin-item p {
   margin: 0.45rem 0 0;
   color: #cbd5e1;
+}
+
+.marketplace-plugin-empty {
+  margin: 0.85rem 0 0;
+  color: #94a3b8;
+}
+
+.installed-skill-group {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  padding: 1rem;
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.installed-skill-group h4 {
+  margin: 0;
+}
+
+.installed-skill-group h4 span {
+  color: #64748b;
+  font-weight: 400;
 }
 
 .marketplace-agents {

@@ -143,18 +143,23 @@ marketplace metadata in SQLite and evaluates trust in the Rust core. A local
 installed marketplace is trusted only when its directory name matches a trusted
 catalog marketplace ID.
 
-The Home page groups each installed marketplace with its **direct child plugin
-folders** from the same marketplace directory. Tupi does not recurse into deeper
-subfolders for this inventory pass, and it hides marketplace panels that do not
-contain any installed plugins.
+The Home page shows each discovered marketplace separately, including
+marketplaces that have no installed plugins, and lists its **direct child plugin
+folders** beneath it. For each plugin, Tupi also discovers skill folders directly
+under its `skills/` directory when they contain a `SKILL.md` file. Skills appear
+in a separate Home-page section grouped by marketplace and plugin; Tupi displays
+the skill folder name and location without reading the skill contents.
+
+Plugin and skill discovery is local inventory only. It does not extend the
+trusted catalog or grant trust to a plugin or skill. Marketplace trust continues
+to be determined only by the Rust catalog match described above.
 
 If Tupi cannot make that catalog match, the installed marketplace must remain
 untrusted. The UI may display the result, but it must not upgrade or infer
 trust on its own.
 
-Nested plugin directories inside each installed marketplace are out of scope for
-this first inventory pass and should not change the marketplace trust result by
-themselves.
+Nested plugin directories inside each installed marketplace are out of scope
+and should not change the marketplace trust result by themselves.
 
 ## Global Copilot agents on the Home page
 
