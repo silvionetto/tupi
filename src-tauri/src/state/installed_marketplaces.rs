@@ -1,5 +1,6 @@
 use super::{
     AppState, InstalledMarketplaceRecord, InstalledMarketplacesState, InstalledPluginRecord,
+    InstalledSkillRecord,
 };
 use crate::catalog::{load_catalog_from_str, Marketplace};
 use crate::error::Result;
@@ -80,6 +81,7 @@ impl AppState {
                 InstalledPluginRecord {
                     name: row.get(1)?,
                     directory_location: row.get(2)?,
+                    skills: Vec::new(),
                 },
             ))
         })?;
@@ -93,10 +95,40 @@ impl AppState {
                 .push(plugin);
         }
 
+        let mut skill_stmt = connection.prepare(
+            r#"
+            SELECT plugin_directory_location, skill_name, skill_directory_location
+            FROM installed_marketplace_plugin_skills
+            ORDER BY lower(plugin_directory_location) ASC, lower(skill_name) ASC, lower(skill_directory_location) ASC
+            "#,
+        )?;
+        let skill_rows = skill_stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                InstalledSkillRecord {
+                    name: row.get(1)?,
+                    directory_location: row.get(2)?,
+                },
+            ))
+        })?;
+        let mut skills_by_plugin = BTreeMap::new();
+        for row in skill_rows {
+            let (plugin_directory_location, skill) = row?;
+            skills_by_plugin
+                .entry(plugin_directory_location)
+                .or_insert_with(Vec::new)
+                .push(skill);
+        }
+
         for marketplace in &mut marketplaces {
             marketplace.plugins = plugins_by_marketplace
                 .remove(&marketplace.directory_location)
                 .unwrap_or_default();
+            for plugin in &mut marketplace.plugins {
+                plugin.skills = skills_by_plugin
+                    .remove(&plugin.directory_location)
+                    .unwrap_or_default();
+            }
         }
 
         let scan_state = connection
@@ -254,6 +286,7 @@ impl AppState {
             plugins.push(InstalledPluginRecord {
                 name: plugin_name,
                 directory_location: path.display().to_string(),
+                skills: Self::collect_installed_plugin_skills(&path)?,
             });
         }
 
@@ -269,6 +302,64 @@ impl AppState {
         });
 
         Ok(plugins)
+    }
+
+    fn collect_installed_plugin_skills(plugin_root: &Path) -> Result<Vec<InstalledSkillRecord>> {
+        let skills_root = plugin_root.join("skills");
+        if !skills_root.exists() {
+            return Ok(Vec::new());
+        }
+        if !skills_root.is_dir() {
+            return Err(crate::error::TupiError::PluginRead(format!(
+                "{} is not a directory",
+                skills_root.display()
+            )));
+        }
+
+        let entries = fs::read_dir(&skills_root).map_err(|err| {
+            crate::error::TupiError::PluginRead(format!("{} ({})", skills_root.display(), err))
+        })?;
+        let mut skills = Vec::new();
+
+        for entry in entries {
+            let entry =
+                entry.map_err(|err| crate::error::TupiError::PluginRead(err.to_string()))?;
+            let path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|err| crate::error::TupiError::PluginRead(err.to_string()))?;
+            if !file_type.is_dir() || !path.join("SKILL.md").is_file() {
+                continue;
+            }
+
+            let skill_name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    crate::error::TupiError::PluginValidation(format!(
+                        "installed skill {} must have a valid directory name",
+                        path.display()
+                    ))
+                })?;
+            skills.push(InstalledSkillRecord {
+                name: skill_name,
+                directory_location: path.display().to_string(),
+            });
+        }
+
+        skills.sort_by(|left, right| {
+            left.name
+                .to_ascii_lowercase()
+                .cmp(&right.name.to_ascii_lowercase())
+                .then_with(|| {
+                    left.directory_location
+                        .to_ascii_lowercase()
+                        .cmp(&right.directory_location.to_ascii_lowercase())
+                })
+        });
+        Ok(skills)
     }
 
     fn load_catalog_marketplaces_by_id(&self) -> Result<BTreeMap<String, Marketplace>> {
@@ -291,6 +382,7 @@ impl AppState {
     ) -> Result<()> {
         let mut connection = self.open()?;
         let tx = connection.transaction()?;
+        tx.execute("DELETE FROM installed_marketplace_plugin_skills", [])?;
         tx.execute("DELETE FROM installed_marketplaces", [])?;
         tx.execute("DELETE FROM installed_marketplace_plugins", [])?;
 
@@ -312,19 +404,34 @@ impl AppState {
             )?;
 
             for plugin in &marketplace.plugins {
-                    tx.execute(
-                        r#"
+                tx.execute(
+                    r#"
                         INSERT INTO installed_marketplace_plugins (
                             marketplace_directory_location, plugin_name, plugin_directory_location
                         )
                         VALUES (?1, ?2, ?3)
                         "#,
+                    params![
+                        &marketplace.directory_location,
+                        &plugin.name,
+                        &plugin.directory_location,
+                    ],
+                )?;
+                for skill in &plugin.skills {
+                    tx.execute(
+                        r#"
+                            INSERT INTO installed_marketplace_plugin_skills (
+                                plugin_directory_location, skill_name, skill_directory_location
+                            )
+                            VALUES (?1, ?2, ?3)
+                            "#,
                         params![
-                            &marketplace.directory_location,
-                            &plugin.name,
                             &plugin.directory_location,
+                            &skill.name,
+                            &skill.directory_location,
                         ],
                     )?;
+                }
             }
         }
 
@@ -406,6 +513,21 @@ agents: []
         )
         .unwrap();
         fs::create_dir_all(installed_root.join("awesome-copilot").join("editor")).unwrap();
+        let skill_dir = installed_root
+            .join("awesome-copilot")
+            .join("editor")
+            .join("skills")
+            .join("microsoft-foundry");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "# Microsoft Foundry").unwrap();
+        fs::create_dir_all(
+            installed_root
+                .join("awesome-copilot")
+                .join("editor")
+                .join("skills")
+                .join("not-a-skill"),
+        )
+        .unwrap();
 
         let marketplaces = state
             .collect_installed_marketplaces(&installed_root)
@@ -421,7 +543,13 @@ agents: []
         assert_eq!(marketplaces[0].trust_status, TrustStatus::Trusted);
         assert_eq!(marketplaces[0].plugins.len(), 2);
         assert_eq!(marketplaces[0].plugins[0].name, "editor");
+        assert_eq!(marketplaces[0].plugins[0].skills.len(), 1);
+        assert_eq!(
+            marketplaces[0].plugins[0].skills[0].name,
+            "microsoft-foundry"
+        );
         assert_eq!(marketplaces[0].plugins[1].name, "plugins");
+        assert!(marketplaces[0].plugins[1].skills.is_empty());
         assert_eq!(marketplaces[1].id, "local-only");
         assert_eq!(marketplaces[1].name, "local-only");
         assert_eq!(marketplaces[1].repository, None);
@@ -457,12 +585,10 @@ agents: []
             .join("user-home")
             .join(".copilot")
             .join("installed-plugins");
-        fs::create_dir_all(
-            installed_root
-                .join("awesome-copilot")
-                .join("assistant"),
-        )
-        .unwrap();
+        let plugin_root = installed_root.join("awesome-copilot").join("assistant");
+        let skill_dir = plugin_root.join("skills").join("validate-agent");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), "# Validate agent").unwrap();
 
         let marketplaces = state
             .collect_installed_marketplaces(&installed_root)
@@ -484,11 +610,16 @@ agents: []
         assert_eq!(stored.marketplaces[0].plugins[0].name, "assistant");
         assert_eq!(
             stored.marketplaces[0].plugins[0].directory_location,
-            installed_root
-                .join("awesome-copilot")
-                .join("assistant")
-                .display()
-                .to_string()
+            plugin_root.display().to_string()
+        );
+        assert_eq!(stored.marketplaces[0].plugins[0].skills.len(), 1);
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].skills[0].name,
+            "validate-agent"
+        );
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].skills[0].directory_location,
+            skill_dir.display().to_string()
         );
 
         fs::remove_dir_all(root).unwrap();

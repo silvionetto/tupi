@@ -68,6 +68,12 @@ type InstalledMarketplace = {
 type InstalledPlugin = {
   name: string;
   directory_location: string;
+  skills: InstalledSkill[];
+};
+
+type InstalledSkill = {
+  name: string;
+  directory_location: string;
 };
 
 type InstalledMarketplacesState = {
@@ -250,8 +256,14 @@ export default function App() {
     return details?.summary.catalogRevision ?? summary.catalogRevision;
   }
 
-  const installedMarketplacesWithPlugins = installedMarketplacesState.marketplaces.filter(
-    (marketplace) => marketplace.plugins.length > 0,
+  const installedSkillGroups = installedMarketplacesState.marketplaces.flatMap((marketplace) =>
+    marketplace.plugins
+      .filter((plugin) => plugin.skills.length > 0)
+      .map((plugin) => ({ marketplace, plugin })),
+  );
+  const installedSkillCount = installedSkillGroups.reduce(
+    (count, group) => count + group.plugin.skills.length,
+    0,
   );
 
   function filterMarketplaceAgents(marketplace: MarketplaceOption) {
@@ -443,7 +455,7 @@ export default function App() {
             ) : (
               <>
                 <div className="home-section">
-                  <h3>Installed marketplaces</h3>
+                  <h3>Installed marketplaces &amp; plugins</h3>
                   <dl className="grid compact-grid">
                     <div>
                       <dt>Scan location</dt>
@@ -459,14 +471,14 @@ export default function App() {
                       Startup scan reported an error: {installedMarketplacesState.error_message}
                     </p>
                   ) : null}
-                  {installedMarketplacesWithPlugins.length === 0 ? (
+                  {installedMarketplacesState.marketplaces.length === 0 ? (
                     <p className="status">
-                      No installed plugins were found under{' '}
+                      No installed marketplaces were found under{' '}
                       {installedMarketplacesState.scan_root}.
                     </p>
                   ) : (
-                    <div className="marketplace-list">
-                      {installedMarketplacesWithPlugins.map((marketplace) => (
+                    <div className="installed-marketplace-list">
+                      {installedMarketplacesState.marketplaces.map((marketplace) => (
                         <article key={marketplace.directory_location} className="marketplace-card">
                           <header>
                             <div>
@@ -497,18 +509,59 @@ export default function App() {
                                 {marketplace.plugins.length === 1 ? '' : 's'}
                               </span>
                             </div>
-                            <ul className="marketplace-plugin-items">
-                              {marketplace.plugins.map((plugin) => (
-                                <li
-                                  key={plugin.directory_location}
-                                  className="marketplace-plugin-item"
-                                >
-                                  <strong>{plugin.name}</strong>
-                                  <p className="agent-path">{plugin.directory_location}</p>
-                                </li>
-                              ))}
-                            </ul>
+                            {marketplace.plugins.length === 0 ? (
+                              <p className="marketplace-plugin-empty">
+                                No plugins are installed in this marketplace.
+                              </p>
+                            ) : (
+                              <ul className="marketplace-plugin-items">
+                                {marketplace.plugins.map((plugin) => (
+                                  <li
+                                    key={plugin.directory_location}
+                                    className="marketplace-plugin-item"
+                                  >
+                                    <strong>{plugin.name}</strong>
+                                    <p className="agent-path">{plugin.directory_location}</p>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </section>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="home-section">
+                  <h3>Installed skills</h3>
+                  <p className="field-hint">
+                    Skills discovered inside installed plugins ({installedSkillCount} total).
+                  </p>
+                  {installedSkillGroups.length === 0 ? (
+                    <p className="status">
+                      No installed skills were found in the discovered marketplace plugins.
+                    </p>
+                  ) : (
+                    <div className="installed-skill-groups">
+                      {installedSkillGroups.map(({ marketplace, plugin }) => (
+                        <article
+                          key={plugin.directory_location}
+                          className="installed-skill-group"
+                        >
+                          <h4>
+                            {marketplace.name} <span aria-hidden="true">/</span> {plugin.name}
+                          </h4>
+                          <ul className="marketplace-plugin-items">
+                            {plugin.skills.map((skill) => (
+                              <li
+                                key={skill.directory_location}
+                                className="marketplace-plugin-item"
+                              >
+                                <strong>{skill.name}</strong>
+                                <p className="agent-path">{skill.directory_location}</p>
+                              </li>
+                            ))}
+                          </ul>
                         </article>
                       ))}
                     </div>
