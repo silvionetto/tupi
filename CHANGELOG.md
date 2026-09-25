@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/silvionetto/tupi/compare/v1.2.0...v1.3.0) (2026-09-25)
+
+### Features
+
+* **catalog:** add support for multiple marketplaces in catalog ([2903b45](https://github.com/silvionetto/tupi/commit/2903b45df4f92245db55b3e081e7e7b52803fa74))
+
 ## [1.2.0](https://github.com/silvionetto/tupi/compare/v1.1.0...v1.2.0) (2026-09-24)
 
 ### Features
