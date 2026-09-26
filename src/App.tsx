@@ -265,16 +265,6 @@ export default function App() {
     return details?.summary.catalogRevision ?? summary.catalogRevision;
   }
 
-  const installedSkillGroups = installedMarketplacesState.marketplaces.flatMap((marketplace) =>
-    marketplace.plugins
-      .filter((plugin) => plugin.skills.length > 0)
-      .map((plugin) => ({ marketplace, plugin })),
-  );
-  const installedSkillCount = installedSkillGroups.reduce(
-    (count, group) => count + group.plugin.skills.length,
-    0,
-  );
-
   function filterMarketplaceAgents(marketplace: MarketplaceOption) {
     const filterText = marketplaceAgentFilters[marketplace.id]?.trim().toLocaleLowerCase() ?? '';
     if (filterText.length === 0) {
@@ -553,85 +543,87 @@ export default function App() {
                             ) : (
                               <ul className="marketplace-plugin-items">
                                 {marketplace.plugins.map((plugin) => (
-                                  <li
-                                    key={plugin.directory_location}
-                                    className="marketplace-plugin-item"
-                                  >
-                                    <strong>{plugin.name}</strong>
-                                    <p className="agent-path">{plugin.directory_location}</p>
-                                    <section
-                                      className="installed-plugin-agents"
-                                      aria-label={`Agents installed in ${plugin.name}`}
-                                    >
-                                      <div className="marketplace-plugin-heading">
-                                        <strong>Installed agents</strong>
-                                        <span className="marketplace-plugin-count">
+                                  <li key={plugin.directory_location}>
+                                    <details className="installed-plugin">
+                                      <summary>
+                                        <strong>{plugin.name}</strong>
+                                        <span className="installed-plugin-counts">
+                                          {plugin.skills.length} skill
+                                          {plugin.skills.length === 1 ? '' : 's'}
+                                          <span aria-hidden="true"> · </span>
                                           {plugin.agents.length} agent
                                           {plugin.agents.length === 1 ? '' : 's'}
                                         </span>
-                                      </div>
-                                      {plugin.agents.length === 0 ? (
-                                        <p className="marketplace-plugin-empty">
-                                          No agents are installed in this plugin.
-                                        </p>
-                                      ) : (
-                                        <ul className="marketplace-plugin-items">
-                                          {plugin.agents.map((agent) => (
-                                            <li
-                                              key={agent.file_location}
-                                              className="marketplace-plugin-item"
-                                            >
-                                              <strong>{agent.name}</strong>
-                                              <p>
-                                                {agent.description ??
-                                                  'No frontmatter description provided.'}
+                                      </summary>
+                                      <div className="installed-plugin-content">
+                                        <p className="agent-path">{plugin.directory_location}</p>
+                                        <div className="installed-plugin-assets">
+                                          <section aria-label={`Skills in ${plugin.name}`}>
+                                            <div className="marketplace-plugin-heading">
+                                              <strong>Skills</strong>
+                                              <span className="marketplace-plugin-count">
+                                                {plugin.skills.length}
+                                              </span>
+                                            </div>
+                                            {plugin.skills.length === 0 ? (
+                                              <p className="marketplace-plugin-empty">
+                                                No skills installed.
                                               </p>
-                                              <p className="agent-path">{agent.file_location}</p>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      )}
-                                    </section>
+                                            ) : (
+                                              <ul className="marketplace-plugin-items">
+                                                {plugin.skills.map((skill) => (
+                                                  <li
+                                                    key={skill.directory_location}
+                                                    className="marketplace-plugin-item"
+                                                  >
+                                                    <strong>{skill.name}</strong>
+                                                    <p className="agent-path">
+                                                      {skill.directory_location}
+                                                    </p>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            )}
+                                          </section>
+                                          <section aria-label={`Agents in ${plugin.name}`}>
+                                            <div className="marketplace-plugin-heading">
+                                              <strong>Agents</strong>
+                                              <span className="marketplace-plugin-count">
+                                                {plugin.agents.length}
+                                              </span>
+                                            </div>
+                                            {plugin.agents.length === 0 ? (
+                                              <p className="marketplace-plugin-empty">
+                                                No agents installed.
+                                              </p>
+                                            ) : (
+                                              <ul className="marketplace-plugin-items">
+                                                {plugin.agents.map((agent) => (
+                                                  <li
+                                                    key={agent.file_location}
+                                                    className="marketplace-plugin-item"
+                                                  >
+                                                    <strong>{agent.name}</strong>
+                                                    <p>
+                                                      {agent.description ??
+                                                        'No frontmatter description provided.'}
+                                                    </p>
+                                                    <p className="agent-path">
+                                                      {agent.file_location}
+                                                    </p>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            )}
+                                          </section>
+                                        </div>
+                                      </div>
+                                    </details>
                                   </li>
                                 ))}
                               </ul>
                             )}
                           </section>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="home-section">
-                  <h3>Installed skills</h3>
-                  <p className="field-hint">
-                    Skills discovered inside installed plugins ({installedSkillCount} total).
-                  </p>
-                  {installedSkillGroups.length === 0 ? (
-                    <p className="status">
-                      No installed skills were found in the discovered marketplace plugins.
-                    </p>
-                  ) : (
-                    <div className="installed-skill-groups">
-                      {installedSkillGroups.map(({ marketplace, plugin }) => (
-                        <article
-                          key={plugin.directory_location}
-                          className="installed-skill-group"
-                        >
-                          <h4>
-                            {marketplace.name} <span aria-hidden="true">/</span> {plugin.name}
-                          </h4>
-                          <ul className="marketplace-plugin-items">
-                            {plugin.skills.map((skill) => (
-                              <li
-                                key={skill.directory_location}
-                                className="marketplace-plugin-item"
-                              >
-                                <strong>{skill.name}</strong>
-                                <p className="agent-path">{skill.directory_location}</p>
-                              </li>
-                            ))}
-                          </ul>
                         </article>
                       ))}
                     </div>
