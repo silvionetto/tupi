@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[derive(Clone)]
 pub struct AppState {
     db_path: PathBuf,
     catalog_path: PathBuf,

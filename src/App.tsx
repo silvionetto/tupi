@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { open } from '@tauri-apps/api/dialog';
 import { invoke } from '@tauri-apps/api/tauri';
 
@@ -184,6 +184,8 @@ function guessProjectName(projectLocation: string) {
 }
 
 export default function App() {
+  const [isLoading, setIsLoading] = useState(true);
+  const startupLoadStarted = useRef(false);
   const [summary, setSummary] = useState<CatalogSummary>(fallbackSummary);
   const [status, setStatus] = useState('Trusted marketplaces are ready.');
   const [details, setDetails] = useState<CatalogState | null>(null);
@@ -331,6 +333,11 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (startupLoadStarted.current) {
+      return;
+    }
+    startupLoadStarted.current = true;
+
     const load = async () => {
       let runningInsideTauri = true;
       let catalogRevision = fallbackSummary.catalogRevision;
@@ -355,6 +362,13 @@ export default function App() {
       }
 
       if (runningInsideTauri) {
+        try {
+          await invoke<void>('refresh_startup_data');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          setStatus(`Some startup data could not be refreshed: ${message}`);
+        }
+
         await Promise.all([
           loadMarketplaces(),
           loadProfiles(),
@@ -368,6 +382,8 @@ export default function App() {
         setInstalledMarketplacesState(fallbackInstalledMarketplacesState);
         setGlobalAgentsState(fallbackGlobalAgentsState);
       }
+
+      setIsLoading(false);
     };
 
     void load();
@@ -405,6 +421,20 @@ export default function App() {
       startNewProfile();
     }
     setStatus(`Deleted project ${id}.`);
+  }
+
+  if (isLoading) {
+    return (
+      <main className="startup-screen" aria-busy="true">
+        <section className="startup-content" role="status" aria-live="polite">
+          <h1>Tupi</h1>
+          <p>Preparing your workspace</p>
+          <div className="startup-progress" role="progressbar" aria-label="Loading Tupi">
+            <span />
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (

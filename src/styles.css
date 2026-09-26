@@ -16,6 +16,55 @@ body {
   background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
 }
 
+.startup-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.startup-content {
+  width: min(100%, 360px);
+}
+
+.startup-content h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  letter-spacing: -0.06em;
+}
+
+.startup-content p {
+  margin: 0.75rem 0 1.5rem;
+  color: #94a3b8;
+}
+
+.startup-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.startup-progress span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: #60a5fa;
+  animation: startup-progress 1.3s ease-in-out infinite;
+}
+
+@keyframes startup-progress {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(260%);
+  }
+}
+
 button {
   border: 0;
   border-radius: 10px;

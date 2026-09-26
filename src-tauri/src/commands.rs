@@ -18,6 +18,32 @@ pub fn get_catalog_state(state: State<'_, AppState>) -> std::result::Result<Cata
 }
 
 #[tauri::command]
+pub async fn refresh_startup_data(state: State<'_, AppState>) -> std::result::Result<(), String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut failures = Vec::new();
+
+        if let Err(err) = state.refresh_installed_marketplaces() {
+            failures.push(err.to_string());
+        }
+        if let Err(err) = state.refresh_global_agents() {
+            failures.push(err.to_string());
+        }
+        if let Err(err) = state.refresh_marketplace_agents() {
+            failures.push(err.to_string());
+        }
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(failures.join("; "))
+        }
+    })
+    .await
+    .map_err(|err| format!("startup refresh task failed: {err}"))?
+}
+
+#[tauri::command]
 pub fn refresh_catalog(state: State<'_, AppState>) -> std::result::Result<RefreshRecord, String> {
     state.refresh_catalog().map_err(|err| err.to_string())
 }
