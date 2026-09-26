@@ -4,10 +4,73 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tupi</title>
+    <style>
+      html,
+      body {
+        min-width: 320px;
+        min-height: 100%;
+        margin: 0;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .initial-loading {
+        display: grid;
+        min-height: 100vh;
+        place-items: center;
+        text-align: center;
+      }
+
+      .initial-loading h1 {
+        margin: 0;
+        font-size: 3rem;
+      }
+
+      .initial-loading p {
+        margin-bottom: 1.5rem;
+        color: #94a3b8;
+      }
+
+      .initial-loading-progress {
+        height: 4px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.2);
+      }
+
+      .initial-loading-progress span {
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: inherit;
+        background: #60a5fa;
+        animation: initial-loading-progress 1.3s ease-in-out infinite;
+      }
+
+      @keyframes initial-loading-progress {
+        from {
+          transform: translateX(-110%);
+        }
+
+        to {
+          transform: translateX(260%);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="initial-loading" role="status" aria-live="polite">
+        <div>
+          <h1>Tupi</h1>
+          <p>Preparing your workspace…</p>
+          <div class="initial-loading-progress" role="progressbar" aria-label="Loading Tupi">
+            <span></span>
+          </div>
+        </div>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
  </html>
-
