@@ -65,6 +65,14 @@ impl AppState {
                 PRIMARY KEY (plugin_directory_location, skill_directory_location)
             );
 
+            CREATE TABLE IF NOT EXISTS installed_marketplace_plugin_agents (
+                plugin_directory_location TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                file_location TEXT NOT NULL,
+                description TEXT,
+                PRIMARY KEY (plugin_directory_location, file_location)
+            );
+
             CREATE TABLE IF NOT EXISTS installed_marketplace_scan_state (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 scan_root TEXT NOT NULL,

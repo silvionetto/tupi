@@ -94,6 +94,15 @@ pub struct InstalledPluginRecord {
     pub directory_location: String,
     #[serde(default)]
     pub skills: Vec<InstalledSkillRecord>,
+    #[serde(default)]
+    pub agents: Vec<InstalledPluginAgentRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledPluginAgentRecord {
+    pub name: String,
+    pub file_location: String,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

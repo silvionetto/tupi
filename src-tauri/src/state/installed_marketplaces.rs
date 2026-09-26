@@ -1,6 +1,6 @@
 use super::{
-    AppState, InstalledMarketplaceRecord, InstalledMarketplacesState, InstalledPluginRecord,
-    InstalledSkillRecord,
+    AppState, InstalledMarketplaceRecord, InstalledMarketplacesState, InstalledPluginAgentRecord,
+    InstalledPluginRecord, InstalledSkillRecord,
 };
 use crate::catalog::{load_catalog_from_str, Marketplace};
 use crate::error::Result;
@@ -82,6 +82,7 @@ impl AppState {
                     name: row.get(1)?,
                     directory_location: row.get(2)?,
                     skills: Vec::new(),
+                    agents: Vec::new(),
                 },
             ))
         })?;
@@ -120,12 +121,41 @@ impl AppState {
                 .push(skill);
         }
 
+        let mut agent_stmt = connection.prepare(
+            r#"
+            SELECT plugin_directory_location, agent_name, file_location, description
+            FROM installed_marketplace_plugin_agents
+            ORDER BY lower(plugin_directory_location) ASC, lower(agent_name) ASC, lower(file_location) ASC
+            "#,
+        )?;
+        let agent_rows = agent_stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                InstalledPluginAgentRecord {
+                    name: row.get(1)?,
+                    file_location: row.get(2)?,
+                    description: row.get(3)?,
+                },
+            ))
+        })?;
+        let mut agents_by_plugin = BTreeMap::new();
+        for row in agent_rows {
+            let (plugin_directory_location, agent) = row?;
+            agents_by_plugin
+                .entry(plugin_directory_location)
+                .or_insert_with(Vec::new)
+                .push(agent);
+        }
+
         for marketplace in &mut marketplaces {
             marketplace.plugins = plugins_by_marketplace
                 .remove(&marketplace.directory_location)
                 .unwrap_or_default();
             for plugin in &mut marketplace.plugins {
                 plugin.skills = skills_by_plugin
+                    .remove(&plugin.directory_location)
+                    .unwrap_or_default();
+                plugin.agents = agents_by_plugin
                     .remove(&plugin.directory_location)
                     .unwrap_or_default();
             }
@@ -287,6 +317,7 @@ impl AppState {
                 name: plugin_name,
                 directory_location: path.display().to_string(),
                 skills: Self::collect_installed_plugin_skills(&path)?,
+                agents: Self::collect_installed_plugin_agents(&path)?,
             });
         }
 
@@ -362,6 +393,86 @@ impl AppState {
         Ok(skills)
     }
 
+    fn collect_installed_plugin_agents(
+        plugin_root: &Path,
+    ) -> Result<Vec<InstalledPluginAgentRecord>> {
+        let agents_root = plugin_root.join("agents");
+        if !agents_root.exists() {
+            return Ok(Vec::new());
+        }
+        if !agents_root.is_dir() {
+            return Err(crate::error::TupiError::PluginRead(format!(
+                "{} is not a directory",
+                agents_root.display()
+            )));
+        }
+
+        let entries = fs::read_dir(&agents_root).map_err(|err| {
+            crate::error::TupiError::PluginRead(format!("{} ({})", agents_root.display(), err))
+        })?;
+        let mut agents = Vec::new();
+
+        for entry in entries {
+            let entry =
+                entry.map_err(|err| crate::error::TupiError::PluginRead(err.to_string()))?;
+            let path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|err| crate::error::TupiError::PluginRead(err.to_string()))?;
+            if !file_type.is_file() {
+                continue;
+            }
+
+            let file_name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .ok_or_else(|| {
+                    crate::error::TupiError::PluginValidation(format!(
+                        "agent file {} must have a valid filename",
+                        path.display()
+                    ))
+                })?;
+            if !file_name.to_ascii_lowercase().ends_with(".agent.md") {
+                continue;
+            }
+
+            let name = file_name[..file_name.len() - ".agent.md".len()]
+                .trim()
+                .to_string();
+            if name.is_empty() {
+                return Err(crate::error::TupiError::PluginValidation(format!(
+                    "agent file {} must end with a non-empty .agent.md name",
+                    path.display()
+                )));
+            }
+
+            let contents = fs::read_to_string(&path).map_err(|err| {
+                crate::error::TupiError::PluginRead(format!(
+                    "{} is not readable UTF-8 ({})",
+                    path.display(),
+                    err
+                ))
+            })?;
+            agents.push(InstalledPluginAgentRecord {
+                name,
+                file_location: path.display().to_string(),
+                description: Self::extract_frontmatter_description(&contents)?,
+            });
+        }
+
+        agents.sort_by(|left, right| {
+            left.name
+                .to_ascii_lowercase()
+                .cmp(&right.name.to_ascii_lowercase())
+                .then_with(|| {
+                    left.file_location
+                        .to_ascii_lowercase()
+                        .cmp(&right.file_location.to_ascii_lowercase())
+                })
+        });
+        Ok(agents)
+    }
+
     fn load_catalog_marketplaces_by_id(&self) -> Result<BTreeMap<String, Marketplace>> {
         let contents = self.read_active_catalog_contents()?;
         let catalog = load_catalog_from_str(&contents)?;
@@ -382,6 +493,7 @@ impl AppState {
     ) -> Result<()> {
         let mut connection = self.open()?;
         let tx = connection.transaction()?;
+        tx.execute("DELETE FROM installed_marketplace_plugin_agents", [])?;
         tx.execute("DELETE FROM installed_marketplace_plugin_skills", [])?;
         tx.execute("DELETE FROM installed_marketplaces", [])?;
         tx.execute("DELETE FROM installed_marketplace_plugins", [])?;
@@ -429,6 +541,22 @@ impl AppState {
                             &plugin.directory_location,
                             &skill.name,
                             &skill.directory_location,
+                        ],
+                    )?;
+                }
+                for agent in &plugin.agents {
+                    tx.execute(
+                        r#"
+                            INSERT INTO installed_marketplace_plugin_agents (
+                                plugin_directory_location, agent_name, file_location, description
+                            )
+                            VALUES (?1, ?2, ?3, ?4)
+                            "#,
+                        params![
+                            &plugin.directory_location,
+                            &agent.name,
+                            &agent.file_location,
+                            &agent.description,
                         ],
                     )?;
                 }
@@ -513,6 +641,22 @@ agents: []
         )
         .unwrap();
         fs::create_dir_all(installed_root.join("awesome-copilot").join("editor")).unwrap();
+        let agents_dir = installed_root
+            .join("awesome-copilot")
+            .join("editor")
+            .join("agents");
+        fs::create_dir_all(agents_dir.join("nested")).unwrap();
+        fs::write(
+            agents_dir.join("planner.agent.md"),
+            "---\ndescription: Plans work carefully\n---\n# Planner",
+        )
+        .unwrap();
+        fs::write(agents_dir.join("notes.md"), "# Not an agent").unwrap();
+        fs::write(
+            agents_dir.join("nested").join("nested.agent.md"),
+            "# Nested agent",
+        )
+        .unwrap();
         let skill_dir = installed_root
             .join("awesome-copilot")
             .join("editor")
@@ -548,8 +692,19 @@ agents: []
             marketplaces[0].plugins[0].skills[0].name,
             "microsoft-foundry"
         );
+        assert_eq!(marketplaces[0].plugins[0].agents.len(), 1);
+        assert_eq!(marketplaces[0].plugins[0].agents[0].name, "planner");
+        assert_eq!(
+            marketplaces[0].plugins[0].agents[0].description.as_deref(),
+            Some("Plans work carefully")
+        );
+        assert_eq!(
+            marketplaces[0].plugins[0].agents[0].file_location,
+            agents_dir.join("planner.agent.md").display().to_string()
+        );
         assert_eq!(marketplaces[0].plugins[1].name, "plugins");
         assert!(marketplaces[0].plugins[1].skills.is_empty());
+        assert!(marketplaces[0].plugins[1].agents.is_empty());
         assert_eq!(marketplaces[1].id, "local-only");
         assert_eq!(marketplaces[1].name, "local-only");
         assert_eq!(marketplaces[1].repository, None);
@@ -589,6 +744,14 @@ agents: []
         let skill_dir = plugin_root.join("skills").join("validate-agent");
         fs::create_dir_all(&skill_dir).unwrap();
         fs::write(skill_dir.join("SKILL.md"), "# Validate agent").unwrap();
+        let agents_dir = plugin_root.join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        let agent_path = agents_dir.join("validator.agent.md");
+        fs::write(
+            &agent_path,
+            "---\ndescription: Checks agent configuration\n---\n# Validator",
+        )
+        .unwrap();
 
         let marketplaces = state
             .collect_installed_marketplaces(&installed_root)
@@ -620,6 +783,21 @@ agents: []
         assert_eq!(
             stored.marketplaces[0].plugins[0].skills[0].directory_location,
             skill_dir.display().to_string()
+        );
+        assert_eq!(stored.marketplaces[0].plugins[0].agents.len(), 1);
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].agents[0].name,
+            "validator"
+        );
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].agents[0].file_location,
+            agent_path.display().to_string()
+        );
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].agents[0]
+                .description
+                .as_deref(),
+            Some("Checks agent configuration")
         );
 
         fs::remove_dir_all(root).unwrap();
