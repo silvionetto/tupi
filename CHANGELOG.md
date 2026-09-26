@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/silvionetto/tupi/compare/v1.5.0...v1.6.0) (2026-09-26)
+
+### Features
+
+* **ui:** list agents installed in plugins ([3abbc15](https://github.com/silvionetto/tupi/commit/3abbc159fa38f9b6e36d1f978229f08d60a7ad1c))
+
 ## [1.5.0](https://github.com/silvionetto/tupi/compare/v1.4.0...v1.5.0) (2026-09-26)
 
 ### Features
