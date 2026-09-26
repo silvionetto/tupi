@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/silvionetto/tupi/compare/v1.4.0...v1.5.0) (2026-09-26)
+
+### Features
+
+* **ui:** add startup loading screen ([1adc5fd](https://github.com/silvionetto/tupi/commit/1adc5fd02fec75f8fbf0cd2cb072a16a70e70c16))
+
 ## [1.4.0](https://github.com/silvionetto/tupi/compare/v1.3.0...v1.4.0) (2026-09-25)
 
 ### Features
