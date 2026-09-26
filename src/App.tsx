@@ -69,6 +69,13 @@ type InstalledPlugin = {
   name: string;
   directory_location: string;
   skills: InstalledSkill[];
+  agents: InstalledPluginAgent[];
+};
+
+type InstalledPluginAgent = {
+  name: string;
+  file_location: string;
+  description: string | null;
 };
 
 type InstalledSkill = {
@@ -552,6 +559,39 @@ export default function App() {
                                   >
                                     <strong>{plugin.name}</strong>
                                     <p className="agent-path">{plugin.directory_location}</p>
+                                    <section
+                                      className="installed-plugin-agents"
+                                      aria-label={`Agents installed in ${plugin.name}`}
+                                    >
+                                      <div className="marketplace-plugin-heading">
+                                        <strong>Installed agents</strong>
+                                        <span className="marketplace-plugin-count">
+                                          {plugin.agents.length} agent
+                                          {plugin.agents.length === 1 ? '' : 's'}
+                                        </span>
+                                      </div>
+                                      {plugin.agents.length === 0 ? (
+                                        <p className="marketplace-plugin-empty">
+                                          No agents are installed in this plugin.
+                                        </p>
+                                      ) : (
+                                        <ul className="marketplace-plugin-items">
+                                          {plugin.agents.map((agent) => (
+                                            <li
+                                              key={agent.file_location}
+                                              className="marketplace-plugin-item"
+                                            >
+                                              <strong>{agent.name}</strong>
+                                              <p>
+                                                {agent.description ??
+                                                  'No frontmatter description provided.'}
+                                              </p>
+                                              <p className="agent-path">{agent.file_location}</p>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </section>
                                   </li>
                                 ))}
                               </ul>
