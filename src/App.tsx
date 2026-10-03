@@ -118,6 +118,7 @@ type InstalledMarketplace = {
   directory_location: string;
   repository: string | null;
   trust_status: 'Trusted' | 'Untrusted' | 'Stale' | 'Invalid' | 'Missing';
+  source_kind: 'marketplace' | 'direct_plugin';
   plugins: InstalledPlugin[];
 };
 
@@ -244,7 +245,10 @@ function buildGlobalInventory(
           description: agent.description,
           trust_status: agent.trust_status,
           source: 'marketplace' as const,
-          parent: `${marketplace.name} / ${plugin.name}`,
+          parent:
+            marketplace.source_kind === 'direct_plugin'
+              ? `Direct plugin / ${plugin.name}`
+              : `${marketplace.name} / ${plugin.name}`,
         })),
         ...plugin.skills.map((skill) => ({
           key: `skill:${skill.directory_location}`,
@@ -254,7 +258,10 @@ function buildGlobalInventory(
           description: null,
           trust_status: skill.trust_status,
           source: 'marketplace' as const,
-          parent: `${marketplace.name} / ${plugin.name}`,
+          parent:
+            marketplace.source_kind === 'direct_plugin'
+              ? `Direct plugin / ${plugin.name}`
+              : `${marketplace.name} / ${plugin.name}`,
         })),
       ]),
     ),

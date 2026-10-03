@@ -1,6 +1,6 @@
 use super::{
     AppState, InstalledMarketplaceRecord, InstalledMarketplacesState, InstalledPluginAgentRecord,
-    InstalledPluginRecord, InstalledSkillRecord,
+    InstalledPluginRecord, InstalledSkillRecord, InstalledSourceKind,
 };
 use crate::catalog::{load_catalog_from_str, Marketplace};
 use crate::error::Result;
@@ -53,12 +53,19 @@ impl AppState {
             "#,
         )?;
         let rows = stmt.query_map([], |row| {
+            let id: String = row.get(0)?;
+            let source_kind = if id.eq_ignore_ascii_case("_direct") {
+                InstalledSourceKind::DirectPlugin
+            } else {
+                InstalledSourceKind::Marketplace
+            };
             Ok(InstalledMarketplaceRecord {
-                id: row.get(0)?,
+                id,
                 name: row.get(1)?,
                 directory_location: row.get(2)?,
                 repository: row.get(3)?,
                 trust_status: Self::trust_status_from_str(&row.get::<_, String>(4)?),
+                source_kind,
                 plugins: Vec::new(),
             })
         })?;
@@ -232,6 +239,10 @@ impl AppState {
                 continue;
             }
 
+            let is_direct_container = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .is_some_and(|name| name.eq_ignore_ascii_case("_direct"));
             let marketplace_id = path
                 .file_name()
                 .and_then(|value| value.to_str())
@@ -244,15 +255,28 @@ impl AppState {
                     ))
                 })?;
 
-            let matched_marketplace =
-                trusted_marketplaces.get(&marketplace_id.to_ascii_lowercase());
-            let (name, repository, trust_status) = match matched_marketplace {
-                Some(marketplace) => (
-                    marketplace.name.clone(),
-                    Some(marketplace.repository.clone()),
-                    TrustStatus::Trusted,
-                ),
-                None => (marketplace_id.clone(), None, TrustStatus::Untrusted),
+            let (name, repository, trust_status, source_kind) = if is_direct_container {
+                (
+                    "Direct installs".to_string(),
+                    None,
+                    TrustStatus::Untrusted,
+                    InstalledSourceKind::DirectPlugin,
+                )
+            } else {
+                match trusted_marketplaces.get(&marketplace_id.to_ascii_lowercase()) {
+                    Some(marketplace) => (
+                        marketplace.name.clone(),
+                        Some(marketplace.repository.clone()),
+                        TrustStatus::Trusted,
+                        InstalledSourceKind::Marketplace,
+                    ),
+                    None => (
+                        marketplace_id.clone(),
+                        None,
+                        TrustStatus::Untrusted,
+                        InstalledSourceKind::Marketplace,
+                    ),
+                }
             };
 
             let mut plugins = Self::collect_installed_marketplace_plugins(&path)?;
@@ -271,6 +295,7 @@ impl AppState {
                 directory_location: path.display().to_string(),
                 repository,
                 trust_status,
+                source_kind,
                 plugins,
             });
         }
@@ -626,6 +651,7 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use crate::state::test_support::{make_test_state, make_test_state_with_catalog};
+    use crate::state::InstalledSourceKind;
     use crate::trust::TrustStatus;
     use std::fs;
 
@@ -750,6 +776,114 @@ agents: []
         assert_eq!(marketplaces[1].repository, None);
         assert_eq!(marketplaces[1].trust_status, TrustStatus::Untrusted);
         assert!(marketplaces[1].plugins.is_empty());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn keeps_direct_plugins_separate_from_catalog_marketplace_trust() {
+        let root = crate::state::test_support::unique_temp_dir("installed-direct-marketplaces");
+        let state = make_test_state_with_catalog(
+            &root,
+            r#"
+version: 1
+catalogRevision: trusted-test
+marketplaces:
+  - id: sn-copilot-plugin
+    name: SN Copilot Plugin
+    repository: https://github.com/silvionetto/sn-copilot-plugin
+    branch: main
+    revision: abc123
+agents: []
+"#,
+        );
+        let installed_root = root
+            .join("user-home")
+            .join(".copilot")
+            .join("installed-plugins");
+        let trusted_plugin = installed_root.join("_direct").join("sn-copilot-plugin");
+        let trusted_agents = trusted_plugin.join("agents");
+        let trusted_skills = trusted_plugin.join("skills").join("spring-boot");
+        let untrusted_plugin = installed_root.join("_direct").join("unknown-marketplace");
+        let untrusted_agents = untrusted_plugin.join("agents");
+        let untrusted_skills = untrusted_plugin.join("skills").join("local-skill");
+        fs::create_dir_all(&trusted_agents).unwrap();
+        fs::create_dir_all(&trusted_skills).unwrap();
+        fs::create_dir_all(&untrusted_agents).unwrap();
+        fs::create_dir_all(&untrusted_skills).unwrap();
+        fs::write(
+            trusted_agents.join("java-developer.agent.md"),
+            "# Java developer",
+        )
+        .unwrap();
+        fs::write(trusted_skills.join("SKILL.md"), "# Spring Boot").unwrap();
+        fs::write(untrusted_agents.join("local.agent.md"), "# Local agent").unwrap();
+        fs::write(untrusted_skills.join("SKILL.md"), "# Local skill").unwrap();
+
+        let marketplaces = state
+            .collect_installed_marketplaces(&installed_root)
+            .unwrap();
+
+        assert_eq!(marketplaces.len(), 1);
+        let trusted = marketplaces
+            .iter()
+            .find(|marketplace| marketplace.id == "_direct")
+            .unwrap();
+        assert_eq!(
+            trusted.directory_location,
+            installed_root.join("_direct").display().to_string()
+        );
+        assert_eq!(trusted.name, "Direct installs");
+        assert_eq!(trusted.trust_status, TrustStatus::Untrusted);
+        assert_eq!(trusted.repository, None);
+        assert_eq!(trusted.source_kind, InstalledSourceKind::DirectPlugin);
+        assert_eq!(trusted.plugins.len(), 2);
+        let direct_catalog_named_plugin = trusted
+            .plugins
+            .iter()
+            .find(|plugin| plugin.name == "sn-copilot-plugin")
+            .unwrap();
+        assert_eq!(
+            direct_catalog_named_plugin.directory_location,
+            trusted_plugin.display().to_string()
+        );
+        assert_eq!(
+            direct_catalog_named_plugin.agents[0].trust_status,
+            TrustStatus::Untrusted
+        );
+        assert_eq!(
+            direct_catalog_named_plugin.skills[0].trust_status,
+            TrustStatus::Untrusted
+        );
+        assert_eq!(
+            direct_catalog_named_plugin.agents[0].file_location,
+            trusted_agents
+                .join("java-developer.agent.md")
+                .display()
+                .to_string()
+        );
+
+        let untrusted = trusted
+            .plugins
+            .iter()
+            .find(|plugin| plugin.name == "unknown-marketplace")
+            .unwrap();
+        assert_eq!(untrusted.agents[0].trust_status, TrustStatus::Untrusted);
+        assert_eq!(untrusted.skills[0].trust_status, TrustStatus::Untrusted);
+
+        state
+            .persist_installed_marketplaces(&marketplaces, &installed_root, "2026-01-01T00:00:00Z")
+            .unwrap();
+        let stored = state.load_installed_marketplaces_state().unwrap();
+        assert_eq!(
+            stored.marketplaces[0].source_kind,
+            InstalledSourceKind::DirectPlugin
+        );
+        assert_eq!(stored.marketplaces[0].plugins.len(), 2);
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].agents[0].trust_status,
+            TrustStatus::Untrusted
+        );
 
         fs::remove_dir_all(root).unwrap();
     }

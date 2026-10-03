@@ -113,6 +113,13 @@ pub struct GlobalSkillsState {
     pub error_message: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InstalledSourceKind {
+    Marketplace,
+    DirectPlugin,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstalledMarketplaceRecord {
     pub id: String,
@@ -120,6 +127,7 @@ pub struct InstalledMarketplaceRecord {
     pub directory_location: String,
     pub repository: Option<String>,
     pub trust_status: TrustStatus,
+    pub source_kind: InstalledSourceKind,
     #[serde(default)]
     pub plugins: Vec<InstalledPluginRecord>,
 }

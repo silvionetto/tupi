@@ -6,6 +6,15 @@ Home inventories per-user agents and skills from the user's `.copilot` data:
 - direct global skills under `.copilot/skills`; and
 - agents and skills inside `.copilot/installed-plugins`.
 
+Copilot may place plugins installed with `/plugin install` under the synthetic
+`.copilot/installed-plugins/_direct` directory. Tupi treats `_direct` only as
+a container for direct plugins and does not interpret its child folder names as
+registry marketplace IDs. These entries are shown as **Direct plugin** assets,
+separate from managed marketplaces. Direct plugin agents and skills are
+currently marked untrusted because Tupi has not independently verified their
+content and provenance; matching a direct plugin folder name to a catalog
+marketplace does not prove that relationship.
+
 The React view presents these as **Global → Agents / Skills**. It displays
 each item's location, trust status, and (for plugin assets) marketplace/plugin
 context. Scan and removal failures are shown in the UI.
@@ -15,9 +24,11 @@ context. Scan and removal failures are shown in the UI.
 Rust owns trust classification. Direct global agents must exactly match the
 content of an agent listed in the active trusted catalog. Direct global skills
 are compared by content digest with catalog-listed skill content. Agents and
-skills found inside an installed marketplace plugin inherit that marketplace's
-trust status, based on whether its marketplace ID is listed in the active
-catalog. Unmatched marketplaces and assets remain untrusted.
+skills found inside a managed installed marketplace inherit that
+marketplace's trust status, based on whether its marketplace ID is listed in
+the active catalog. Unmatched marketplaces and assets remain untrusted.
+Direct plugins do not inherit marketplace trust based on their `_direct`
+folder name or child folder name.
 
 ## Removal behavior
 

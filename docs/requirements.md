@@ -290,7 +290,7 @@ results. It must not independently fetch, parse, or authorize trusted assets.
 | FR-013 | The application shall prevent the UI or profile data from overriding core trust decisions. |
 | FR-014 | The application shall support offline use of the last valid catalog with visible stale status. |
 | FR-015 | The Home view shall list user-level global agents and skills, including agents and skills contained in installed marketplace plugins. |
-| FR-016 | The application shall determine direct global asset trust in the Rust core and inherit marketplace trust for marketplace/plugin assets. |
+| FR-016 | The application shall determine direct global asset trust in the Rust core, inherit trust for assets in managed marketplaces, and not infer marketplace trust for direct plugins from folder names. |
 | FR-017 | The application shall remove only a selected user-level agent or skill and preserve its containing marketplace/plugin. |
 
 ## 10. Non-functional requirements
