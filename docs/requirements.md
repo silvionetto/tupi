@@ -204,6 +204,21 @@ Users must be able to:
 The application must not present an untrusted asset as trusted through labels,
 icons, default filters, or generated profile data.
 
+### 6.4 Global user asset inventory
+
+The Home view must inventory user-level global agents and skills, including
+assets contained in installed marketplace plugins. Each item must show its
+trust status and location. Direct global assets are trusted only when their
+content matches trusted catalog content; an asset in an installed marketplace
+plugin inherits that marketplace's trust status.
+
+Users may remove one item at a time. Trusted items are presented as
+uninstallable; untrusted items are presented as deletable. Removal must not
+delete the containing plugin or marketplace, must be restricted to discovered
+user-level asset paths, and must reject path traversal and symbolic-link
+escapes. The UI must confirm removal, report errors, and refresh the inventory
+afterward. Project-local profile assets are managed separately.
+
 ## 7. Project profiles
 
 A profile describes which catalog-approved assets a project wants to use. It
@@ -274,6 +289,9 @@ results. It must not independently fetch, parse, or authorize trusted assets.
 | FR-012 | The application shall identify unavailable, stale, untrusted, and invalid assets explicitly. |
 | FR-013 | The application shall prevent the UI or profile data from overriding core trust decisions. |
 | FR-014 | The application shall support offline use of the last valid catalog with visible stale status. |
+| FR-015 | The Home view shall list user-level global agents and skills, including agents and skills contained in installed marketplace plugins. |
+| FR-016 | The application shall determine direct global asset trust in the Rust core and inherit marketplace trust for marketplace/plugin assets. |
+| FR-017 | The application shall remove only a selected user-level agent or skill and preserve its containing marketplace/plugin. |
 
 ## 10. Non-functional requirements
 
@@ -303,7 +321,11 @@ The MVP is acceptable when:
 8. changing a profile cannot change an asset's trust status;
 9. an interrupted refresh cannot produce a partially valid cache; and
 10. the UI displays the source branch, commit/revision, trust status, and
-    refresh state for selected assets.
+    refresh state for selected assets;
+11. Home lists global agents and skills from direct user directories and
+    installed marketplace plugins with their trust status; and
+12. removing one listed item preserves its containing plugin/marketplace and
+    every neighboring asset.
 
 ## 12. Future considerations
 

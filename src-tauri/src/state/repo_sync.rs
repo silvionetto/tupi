@@ -29,6 +29,39 @@ impl AppState {
                 ));
             }
         } else {
+            let configured_origin = Command::new("git")
+                .args([
+                    "-C",
+                    repo_dir.to_string_lossy().as_ref(),
+                    "remote",
+                    "get-url",
+                    "origin",
+                ])
+                .output()
+                .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+            if !configured_origin.status.success() {
+                return Err(crate::error::TupiError::CatalogRead(
+                    "failed to verify trusted catalog repository origin".into(),
+                ));
+            }
+            if String::from_utf8_lossy(&configured_origin.stdout).trim() != repository {
+                let status = Command::new("git")
+                    .args([
+                        "-C",
+                        repo_dir.to_string_lossy().as_ref(),
+                        "remote",
+                        "set-url",
+                        "origin",
+                        repository,
+                    ])
+                    .status()
+                    .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+                if !status.success() {
+                    return Err(crate::error::TupiError::CatalogRead(
+                        "failed to configure trusted catalog repository origin".into(),
+                    ));
+                }
+            }
             let status = Command::new("git")
                 .args([
                     "-C",
@@ -61,9 +94,24 @@ impl AppState {
             ));
         }
 
-        let catalog_path = repo_dir.join("catalog").join("trusted-assets.yaml");
-        fs::read_to_string(&catalog_path).map_err(|err| {
-            crate::error::TupiError::CatalogRead(format!("{} ({})", catalog_path.display(), err))
+        let catalog_contents = Command::new("git")
+            .args([
+                "-C",
+                repo_dir.to_string_lossy().as_ref(),
+                "show",
+                &format!("origin/{source_branch}:catalog/trusted-assets.yaml"),
+            ])
+            .output()
+            .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+        if !catalog_contents.status.success() {
+            return Err(crate::error::TupiError::CatalogRead(format!(
+                "failed to read trusted catalog from origin/{source_branch}"
+            )));
+        }
+        String::from_utf8(catalog_contents.stdout).map_err(|err| {
+            crate::error::TupiError::CatalogRead(format!(
+                "trusted catalog is not valid UTF-8 ({err})"
+            ))
         })
     }
 
@@ -73,6 +121,7 @@ impl AppState {
         cache_key: &str,
         repository: &str,
         branch: &str,
+        revision: &str,
         label: &str,
     ) -> Result<PathBuf> {
         let repo_dir = self
@@ -124,20 +173,53 @@ impl AppState {
             }
         }
 
+        let branch_ref = format!("origin/{branch}");
         let status = Command::new("git")
             .args([
                 "-C",
                 repo_dir.to_string_lossy().as_ref(),
-                "checkout",
-                "-B",
-                branch,
-                &format!("origin/{branch}"),
+                "merge-base",
+                "--is-ancestor",
+                revision,
+                &branch_ref,
             ])
             .status()
             .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
         if !status.success() {
             return Err(crate::error::TupiError::CatalogRead(format!(
-                "failed to check out {label} branch"
+                "pinned revision {revision} is not on {branch} for {label}"
+            )));
+        }
+
+        let status = Command::new("git")
+            .args([
+                "-C",
+                repo_dir.to_string_lossy().as_ref(),
+                "checkout",
+                "--detach",
+                revision,
+            ])
+            .status()
+            .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+        if !status.success() {
+            return Err(crate::error::TupiError::CatalogRead(format!(
+                "failed to check out pinned revision for {label}"
+            )));
+        }
+
+        let verified = Command::new("git")
+            .args([
+                "-C",
+                repo_dir.to_string_lossy().as_ref(),
+                "rev-parse",
+                "HEAD",
+            ])
+            .output()
+            .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+        let head = String::from_utf8_lossy(&verified.stdout).trim().to_string();
+        if !verified.status.success() || head != revision {
+            return Err(crate::error::TupiError::CatalogRead(format!(
+                "failed to verify pinned revision for {label}"
             )));
         }
 

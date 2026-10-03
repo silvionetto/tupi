@@ -109,6 +109,7 @@ impl AppState {
                 InstalledSkillRecord {
                     name: row.get(1)?,
                     directory_location: row.get(2)?,
+                    trust_status: TrustStatus::Untrusted,
                 },
             ))
         })?;
@@ -135,6 +136,7 @@ impl AppState {
                     name: row.get(1)?,
                     file_location: row.get(2)?,
                     description: row.get(3)?,
+                    trust_status: TrustStatus::Untrusted,
                 },
             ))
         })?;
@@ -158,6 +160,12 @@ impl AppState {
                 plugin.agents = agents_by_plugin
                     .remove(&plugin.directory_location)
                     .unwrap_or_default();
+                for skill in &mut plugin.skills {
+                    skill.trust_status = marketplace.trust_status.clone();
+                }
+                for agent in &mut plugin.agents {
+                    agent.trust_status = marketplace.trust_status.clone();
+                }
             }
         }
 
@@ -247,13 +255,23 @@ impl AppState {
                 None => (marketplace_id.clone(), None, TrustStatus::Untrusted),
             };
 
+            let mut plugins = Self::collect_installed_marketplace_plugins(&path)?;
+            for plugin in &mut plugins {
+                for skill in &mut plugin.skills {
+                    skill.trust_status = trust_status.clone();
+                }
+                for agent in &mut plugin.agents {
+                    agent.trust_status = trust_status.clone();
+                }
+            }
+
             marketplaces.push(InstalledMarketplaceRecord {
                 id: marketplace_id,
                 name,
                 directory_location: path.display().to_string(),
                 repository,
                 trust_status,
-                plugins: Self::collect_installed_marketplace_plugins(&path)?,
+                plugins,
             });
         }
 
@@ -377,6 +395,7 @@ impl AppState {
             skills.push(InstalledSkillRecord {
                 name: skill_name,
                 directory_location: path.display().to_string(),
+                trust_status: TrustStatus::Untrusted,
             });
         }
 
@@ -457,6 +476,7 @@ impl AppState {
                 name,
                 file_location: path.display().to_string(),
                 description: Self::extract_frontmatter_description(&contents)?,
+                trust_status: TrustStatus::Untrusted,
             });
         }
 
@@ -692,8 +712,16 @@ agents: []
             marketplaces[0].plugins[0].skills[0].name,
             "microsoft-foundry"
         );
+        assert_eq!(
+            marketplaces[0].plugins[0].skills[0].trust_status,
+            TrustStatus::Trusted
+        );
         assert_eq!(marketplaces[0].plugins[0].agents.len(), 1);
         assert_eq!(marketplaces[0].plugins[0].agents[0].name, "planner");
+        assert_eq!(
+            marketplaces[0].plugins[0].agents[0].trust_status,
+            TrustStatus::Trusted
+        );
         assert_eq!(
             marketplaces[0].plugins[0].agents[0].description.as_deref(),
             Some("Plans work carefully")
@@ -701,6 +729,18 @@ agents: []
         assert_eq!(
             marketplaces[0].plugins[0].agents[0].file_location,
             agents_dir.join("planner.agent.md").display().to_string()
+        );
+        state
+            .persist_installed_marketplaces(&marketplaces, &installed_root, "2026-01-01T00:00:00Z")
+            .unwrap();
+        let stored = state.load_installed_marketplaces_state().unwrap();
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].skills[0].trust_status,
+            TrustStatus::Trusted
+        );
+        assert_eq!(
+            stored.marketplaces[0].plugins[0].agents[0].trust_status,
+            TrustStatus::Trusted
         );
         assert_eq!(marketplaces[0].plugins[1].name, "plugins");
         assert!(marketplaces[0].plugins[1].skills.is_empty());

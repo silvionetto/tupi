@@ -1,4 +1,7 @@
-use super::{AgentOption, AppState, MarketplaceAgentRecord, MarketplaceOption};
+use super::{
+    AgentOption, AppState, MarketplaceAgentRecord, MarketplaceOption, MarketplacePluginRecord,
+    MarketplaceSkillRecord,
+};
 use crate::catalog::{load_catalog_from_str, Marketplace, TrustedCatalog};
 use crate::error::Result;
 use crate::trust::TrustStatus;
@@ -18,6 +21,8 @@ impl AppState {
         let contents = self.read_active_catalog_contents()?;
         let catalog = load_catalog_from_str(&contents)?;
         let mut agents_by_marketplace = BTreeMap::new();
+        let mut root_skills_by_marketplace = BTreeMap::new();
+        let mut skills_by_marketplace = BTreeMap::new();
 
         for marketplace in &catalog.marketplaces {
             let workspace = self.sync_repository_workspace(
@@ -25,6 +30,7 @@ impl AppState {
                 &marketplace.id,
                 &marketplace.repository,
                 &marketplace.branch,
+                &marketplace.revision,
                 "trusted marketplace repository",
             )?;
             let agents_dir = workspace.join("agents");
@@ -33,10 +39,40 @@ impl AppState {
             } else {
                 Vec::new()
             };
+            let skills_dir = workspace.join("skills");
+            let root_skills = if skills_dir.exists() {
+                if !skills_dir.is_dir() {
+                    return Err(crate::error::TupiError::CatalogRead(format!(
+                        "{} is not a directory",
+                        skills_dir.display()
+                    )));
+                }
+                Self::discover_plugin_skills(&skills_dir)?
+            } else {
+                Vec::new()
+            };
+            let plugins_dir = workspace.join("plugins");
+            let plugins = if plugins_dir.exists() {
+                if !plugins_dir.is_dir() {
+                    return Err(crate::error::TupiError::CatalogRead(format!(
+                        "{} is not a directory",
+                        plugins_dir.display()
+                    )));
+                }
+                Self::discover_marketplace_skills(&plugins_dir)?
+            } else {
+                Vec::new()
+            };
             agents_by_marketplace.insert(marketplace.id.clone(), agents);
+            root_skills_by_marketplace.insert(marketplace.id.clone(), root_skills);
+            skills_by_marketplace.insert(marketplace.id.clone(), plugins);
         }
 
-        self.persist_marketplace_agents(&agents_by_marketplace)
+        self.persist_marketplace_inventory(
+            &agents_by_marketplace,
+            &root_skills_by_marketplace,
+            &skills_by_marketplace,
+        )
     }
 
     pub fn list_available_agents(&self) -> Result<Vec<AgentOption>> {
@@ -58,10 +94,19 @@ impl AppState {
         let contents = self.read_active_catalog_contents()?;
         let catalog = load_catalog_from_str(&contents)?;
         let agents_by_marketplace = self.load_marketplace_agents_by_marketplace()?;
+        let (skills_by_marketplace, root_skills_by_marketplace) =
+            self.load_marketplace_skills_by_marketplace()?;
         let mut marketplaces = catalog
             .marketplaces
             .iter()
-            .map(|marketplace| Self::to_marketplace_option(marketplace, &agents_by_marketplace))
+            .map(|marketplace| {
+                Self::to_marketplace_option(
+                    marketplace,
+                    &agents_by_marketplace,
+                    &skills_by_marketplace,
+                    &root_skills_by_marketplace,
+                )
+            })
             .collect::<Vec<_>>();
         marketplaces.sort_by(|left, right| left.name.cmp(&right.name).then(left.id.cmp(&right.id)));
         Ok(marketplaces)
@@ -79,6 +124,7 @@ impl AppState {
                 &marketplace.id,
                 &marketplace.repository,
                 &marketplace.branch,
+                &marketplace.revision,
                 "trusted marketplace repository",
             )?;
             let agents_dir = workspace.join("agents");
@@ -170,13 +216,115 @@ impl AppState {
         Ok(())
     }
 
-    fn persist_marketplace_agents(
+    fn discover_marketplace_skills(plugins_root: &Path) -> Result<Vec<MarketplacePluginRecord>> {
+        let entries = fs::read_dir(plugins_root).map_err(|err| {
+            crate::error::TupiError::CatalogRead(format!("{} ({})", plugins_root.display(), err))
+        })?;
+        let mut plugins = Vec::new();
+
+        for entry in entries {
+            let entry =
+                entry.map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+            let plugin_path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+            if !file_type.is_dir() {
+                continue;
+            }
+
+            let plugin_name = plugin_path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    crate::error::TupiError::CatalogValidation(format!(
+                        "plugin directory {} must have a valid name",
+                        plugin_path.display()
+                    ))
+                })?;
+            let skills_root = plugin_path.join("skills");
+            let skills = if skills_root.exists() {
+                if !skills_root.is_dir() {
+                    return Err(crate::error::TupiError::CatalogRead(format!(
+                        "{} is not a directory",
+                        skills_root.display()
+                    )));
+                }
+                Self::discover_plugin_skills(&skills_root)?
+            } else {
+                Vec::new()
+            };
+
+            plugins.push(MarketplacePluginRecord {
+                name: plugin_name,
+                skills,
+            });
+        }
+
+        plugins.sort_by(|left, right| {
+            left.name
+                .to_ascii_lowercase()
+                .cmp(&right.name.to_ascii_lowercase())
+                .then_with(|| left.name.cmp(&right.name))
+        });
+        Ok(plugins)
+    }
+
+    fn discover_plugin_skills(skills_root: &Path) -> Result<Vec<MarketplaceSkillRecord>> {
+        let entries = fs::read_dir(skills_root).map_err(|err| {
+            crate::error::TupiError::CatalogRead(format!("{} ({})", skills_root.display(), err))
+        })?;
+        let mut skills = Vec::new();
+
+        for entry in entries {
+            let entry =
+                entry.map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+            let skill_path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|err| crate::error::TupiError::CatalogRead(err.to_string()))?;
+            if !file_type.is_dir() || !skill_path.join("SKILL.md").is_file() {
+                continue;
+            }
+
+            let name = skill_path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    crate::error::TupiError::CatalogValidation(format!(
+                        "skill directory {} must have a valid name",
+                        skill_path.display()
+                    ))
+                })?;
+            skills.push(MarketplaceSkillRecord {
+                name,
+                directory_location: skill_path.display().to_string(),
+            });
+        }
+
+        skills.sort_by(|left, right| {
+            left.name
+                .to_ascii_lowercase()
+                .cmp(&right.name.to_ascii_lowercase())
+                .then_with(|| left.name.cmp(&right.name))
+        });
+        Ok(skills)
+    }
+
+    fn persist_marketplace_inventory(
         &self,
         agents_by_marketplace: &BTreeMap<String, Vec<MarketplaceAgentRecord>>,
+        root_skills_by_marketplace: &BTreeMap<String, Vec<MarketplaceSkillRecord>>,
+        skills_by_marketplace: &BTreeMap<String, Vec<MarketplacePluginRecord>>,
     ) -> Result<()> {
         let mut connection = self.open()?;
         let tx = connection.transaction()?;
         tx.execute("DELETE FROM marketplace_agents", [])?;
+        tx.execute("DELETE FROM marketplace_skills", [])?;
 
         for (marketplace_id, agents) in agents_by_marketplace {
             for agent in agents {
@@ -192,6 +340,41 @@ impl AppState {
                         Self::trust_status_label(&agent.trust_status)
                     ],
                 )?;
+            }
+        }
+
+        for (marketplace_id, skills) in root_skills_by_marketplace {
+            for skill in skills {
+                tx.execute(
+                    r#"
+                    INSERT INTO marketplace_skills (
+                        marketplace_id, plugin_name, skill_name, directory_location
+                    )
+                    VALUES (?1, '', ?2, ?3)
+                    "#,
+                    params![marketplace_id, &skill.name, &skill.directory_location],
+                )?;
+            }
+        }
+
+        for (marketplace_id, plugins) in skills_by_marketplace {
+            for plugin in plugins {
+                for skill in &plugin.skills {
+                    tx.execute(
+                        r#"
+                        INSERT INTO marketplace_skills (
+                            marketplace_id, plugin_name, skill_name, directory_location
+                        )
+                        VALUES (?1, ?2, ?3, ?4)
+                        "#,
+                        params![
+                            marketplace_id,
+                            &plugin.name,
+                            &skill.name,
+                            &skill.directory_location
+                        ],
+                    )?;
+                }
             }
         }
 
@@ -233,15 +416,85 @@ impl AppState {
         Ok(agents_by_marketplace)
     }
 
+    fn load_marketplace_skills_by_marketplace(
+        &self,
+    ) -> Result<(
+        BTreeMap<String, Vec<MarketplacePluginRecord>>,
+        BTreeMap<String, Vec<MarketplaceSkillRecord>>,
+    )> {
+        let connection = self.open()?;
+        let mut stmt = connection.prepare(
+            r#"
+            SELECT marketplace_id, plugin_name, skill_name, directory_location
+            FROM marketplace_skills
+            ORDER BY lower(marketplace_id) ASC, lower(plugin_name) ASC, lower(skill_name) ASC
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                MarketplaceSkillRecord {
+                    name: row.get(2)?,
+                    directory_location: row.get(3)?,
+                },
+            ))
+        })?;
+
+        let mut skills_by_plugin: BTreeMap<String, BTreeMap<String, Vec<MarketplaceSkillRecord>>> =
+            BTreeMap::new();
+        let mut skills_by_marketplace = BTreeMap::new();
+        for row in rows {
+            let (marketplace_id, plugin_name, skill) = row?;
+            if plugin_name.is_empty() {
+                skills_by_marketplace
+                    .entry(marketplace_id)
+                    .or_insert_with(Vec::new)
+                    .push(skill);
+            } else {
+                skills_by_plugin
+                    .entry(marketplace_id)
+                    .or_default()
+                    .entry(plugin_name)
+                    .or_default()
+                    .push(skill);
+            }
+        }
+
+        let plugins_by_marketplace = skills_by_plugin
+            .into_iter()
+            .map(|(marketplace_id, plugins)| {
+                (
+                    marketplace_id,
+                    plugins
+                        .into_iter()
+                        .map(|(name, skills)| MarketplacePluginRecord { name, skills })
+                        .collect(),
+                )
+            })
+            .collect();
+        Ok((plugins_by_marketplace, skills_by_marketplace))
+    }
+
     fn to_marketplace_option(
         marketplace: &Marketplace,
         agents_by_marketplace: &BTreeMap<String, Vec<MarketplaceAgentRecord>>,
+        skills_by_marketplace: &BTreeMap<String, Vec<MarketplacePluginRecord>>,
+        root_skills_by_marketplace: &BTreeMap<String, Vec<MarketplaceSkillRecord>>,
     ) -> MarketplaceOption {
         MarketplaceOption {
             id: marketplace.id.clone(),
             name: marketplace.name.clone(),
             repository: marketplace.repository.clone(),
             agents: agents_by_marketplace
+                .get(&marketplace.id)
+                .cloned()
+                .unwrap_or_default(),
+            skills: root_skills_by_marketplace
+                .get(&marketplace.id)
+                .cloned()
+                .unwrap_or_default(),
+            plugins: skills_by_marketplace
                 .get(&marketplace.id)
                 .cloned()
                 .unwrap_or_default(),
@@ -324,7 +577,9 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppState, MarketplaceAgentRecord};
+    use super::{
+        AppState, MarketplaceAgentRecord, MarketplacePluginRecord, MarketplaceSkillRecord,
+    };
     use crate::state::test_support::make_test_state_with_catalog;
     use crate::trust::TrustStatus;
     use std::collections::BTreeMap;
@@ -339,8 +594,9 @@ mod tests {
         fs::write(agents_dir.join("nested").join("planner.md"), "# planner").unwrap();
         fs::write(agents_dir.join("nested").join("notes.txt"), "ignore").unwrap();
 
-        let agents = AppState::discover_agents_from_roots(&[(String::from("official"), agents_dir)])
-            .unwrap();
+        let agents =
+            AppState::discover_agents_from_roots(&[(String::from("official"), agents_dir)])
+                .unwrap();
 
         assert_eq!(agents.len(), 2);
         assert_eq!(agents[0].name, "planner");
@@ -401,7 +657,63 @@ mod tests {
     }
 
     #[test]
-    fn list_marketplaces_includes_persisted_marketplace_agents() {
+    fn discovers_plugin_skills_with_skill_markdown_files() {
+        let root = crate::state::test_support::unique_temp_dir("marketplace-skill-discovery");
+        let plugins_dir = root.join("plugins");
+        let skills_dir = plugins_dir.join("test-plugin").join("skills");
+        fs::create_dir_all(skills_dir.join("typescript")).unwrap();
+        fs::create_dir_all(skills_dir.join("missing-skill-file")).unwrap();
+        fs::write(
+            skills_dir.join("typescript").join("SKILL.md"),
+            "# TypeScript",
+        )
+        .unwrap();
+        fs::create_dir_all(plugins_dir.join("plugin-without-skills")).unwrap();
+
+        let plugins = AppState::discover_marketplace_skills(&plugins_dir).unwrap();
+
+        assert_eq!(plugins.len(), 2);
+        assert_eq!(plugins[0].name, "plugin-without-skills");
+        assert!(plugins[0].skills.is_empty());
+        assert_eq!(plugins[1].name, "test-plugin");
+        assert_eq!(plugins[1].skills.len(), 1);
+        assert_eq!(plugins[1].skills[0].name, "typescript");
+        assert_eq!(
+            plugins[1].skills[0].directory_location,
+            skills_dir.join("typescript").display().to_string()
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn discovers_marketplace_level_skills() {
+        let root = crate::state::test_support::unique_temp_dir("marketplace-root-skills");
+        let skills_dir = root.join("skills");
+        fs::create_dir_all(skills_dir.join("copilot-customization")).unwrap();
+        fs::write(
+            skills_dir.join("copilot-customization").join("SKILL.md"),
+            "# Copilot customization",
+        )
+        .unwrap();
+
+        let skills = AppState::discover_plugin_skills(&skills_dir).unwrap();
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].name, "copilot-customization");
+        assert_eq!(
+            skills[0].directory_location,
+            skills_dir
+                .join("copilot-customization")
+                .display()
+                .to_string()
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn list_marketplaces_includes_persisted_marketplace_agents_and_skills() {
         let root = crate::state::test_support::unique_temp_dir("marketplace-agents-list");
         let state = make_test_state_with_catalog(
             &root,
@@ -427,7 +739,32 @@ agents: []
                 trust_status: TrustStatus::Trusted,
             }],
         );
-        state.persist_marketplace_agents(&agents_by_marketplace).unwrap();
+        let mut root_skills_by_marketplace = BTreeMap::new();
+        root_skills_by_marketplace.insert(
+            String::from("awesome-copilot"),
+            vec![MarketplaceSkillRecord {
+                name: String::from("copilot-customization"),
+                directory_location: String::from("skills/copilot-customization"),
+            }],
+        );
+        let mut skills_by_marketplace = BTreeMap::new();
+        skills_by_marketplace.insert(
+            String::from("awesome-copilot"),
+            vec![MarketplacePluginRecord {
+                name: String::from("typescript-tools"),
+                skills: vec![MarketplaceSkillRecord {
+                    name: String::from("typescript"),
+                    directory_location: String::from("plugins/typescript-tools/skills/typescript"),
+                }],
+            }],
+        );
+        state
+            .persist_marketplace_inventory(
+                &agents_by_marketplace,
+                &root_skills_by_marketplace,
+                &skills_by_marketplace,
+            )
+            .unwrap();
 
         let marketplaces = state.list_marketplaces().unwrap();
 
@@ -440,6 +777,12 @@ agents: []
             Some("Trusted planner")
         );
         assert_eq!(marketplaces[0].agents[0].trust_status, TrustStatus::Trusted);
+        assert_eq!(marketplaces[0].plugins.len(), 1);
+        assert_eq!(marketplaces[0].plugins[0].name, "typescript-tools");
+        assert_eq!(marketplaces[0].plugins[0].skills.len(), 1);
+        assert_eq!(marketplaces[0].plugins[0].skills[0].name, "typescript");
+        assert_eq!(marketplaces[0].skills.len(), 1);
+        assert_eq!(marketplaces[0].skills[0].name, "copilot-customization");
 
         fs::remove_dir_all(root).unwrap();
     }

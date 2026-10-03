@@ -11,6 +11,12 @@ The desktop application refreshes this catalog from `main` and uses it to
 discover and update trusted marketplaces, agents, prompts, skills, and
 instructions.
 
+The desktop app's default catalog source is
+`https://github.com/silvionetto/tupi.git`. Deployments may set
+`TUPI_CATALOG_REPOSITORY` to a trusted mirror. The bundled YAML is only a
+stale scaffold: project asset installation remains unavailable until a
+successful refresh reads the catalog from `main`.
+
 An asset can be trusted only when it is listed in the catalog from the
 repository's `main` branch. Assets from every other branch are untrusted,
 including feature, development, release, pull-request, and local branches.
@@ -91,7 +97,8 @@ The desktop application should:
 5. Compare the catalog revision with the local catalog cache.
 6. Download or update only the marketplaces and assets listed in the catalog.
 7. Scan each trusted marketplace `agents/` folder for `*.agent.md` files and
-   persist that marketplace-owned inventory with trust metadata.
+   each `plugins/<plugin>/skills/` folder for skill directories containing
+   `SKILL.md`, then persist those marketplace-owned inventories.
 8. Activate only the assets selected by the current project profile.
 
 If the catalog cannot be fetched or verified, the application should retain the
@@ -130,6 +137,41 @@ it persists the agent under the owning marketplace in SQLite with the
 filename-derived name, optional frontmatter `description`, and a trusted
 status. This inventory is for browsing trusted marketplace content; it is
 separate from the local global-agent scan under `.copilot/agents`.
+
+## Trusted marketplace skill inventory
+
+The About page may display skills available from trusted marketplace
+repositories. Tupi discovers both marketplace-level skills under
+`.tupi/catalog-cache/marketplaces/<marketplace-id>/skills/<skill>` and plugin
+skills under
+`.tupi/catalog-cache/marketplaces/<marketplace-id>/plugins/<plugin>/skills/<skill>`.
+Each skill directory is listed only when it contains a `SKILL.md` file.
+Marketplace-level skills are grouped under the marketplace; plugin skills are
+grouped under their plugin. The About page shows names and cached locations.
+
+This inventory is derived only from catalog-listed marketplace workspaces. It
+is separate from the Home-page inventory of skills already present in local
+installed plugins. Browsing an asset does not change catalog trust.
+
+## Installing assets into project profiles
+
+The Profiles page provides an **Agents & skills** manager for each saved
+project. It lists agents and skills from the currently trusted marketplace
+workspaces, which are checked out at the catalog-pinned marketplace revision.
+Installing an agent copies its `*.agent.md` file into the project's
+`.github/agents/`; installing a skill copies its complete skill directory into
+`.github/skills/`.
+
+Tupi records installed asset identities, project destinations, and content
+digests in its local SQLite state. This lets the UI distinguish an available
+asset from an existing unmanaged conflict, an unmodified Tupi installation, or
+a Tupi installation that has since been edited. Install never overwrites an
+existing destination. Uninstall removes only content that still matches the
+recorded digest; modified content is preserved and reported.
+Installation is disabled when the catalog is stale or a cached marketplace
+does not match its trusted repository and pinned revision.
+The asset manager provides a **Refresh trusted catalog** action to resolve a
+stale scaffold or update the active catalog.
 
 ## Installed Copilot marketplaces on the Home page
 

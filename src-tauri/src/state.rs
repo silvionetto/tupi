@@ -1,7 +1,10 @@
 mod catalog_store;
 mod global_agents;
+mod global_skills;
 mod installed_marketplaces;
+mod local_assets;
 mod marketplace_agents;
+mod profile_assets;
 mod profiles_store;
 mod repo_sync;
 #[cfg(test)]
@@ -10,6 +13,7 @@ mod test_support;
 use crate::catalog::CatalogSummary;
 use crate::error::Result;
 use crate::trust::TrustStatus;
+pub use profile_assets::ProfileAsset;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -52,6 +56,10 @@ pub struct MarketplaceOption {
     pub repository: String,
     #[serde(default)]
     pub agents: Vec<MarketplaceAgentRecord>,
+    #[serde(default)]
+    pub skills: Vec<MarketplaceSkillRecord>,
+    #[serde(default)]
+    pub plugins: Vec<MarketplacePluginRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +67,19 @@ pub struct MarketplaceAgentRecord {
     pub name: String,
     pub description: Option<String>,
     pub trust_status: TrustStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarketplacePluginRecord {
+    pub name: String,
+    #[serde(default)]
+    pub skills: Vec<MarketplaceSkillRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarketplaceSkillRecord {
+    pub name: String,
+    pub directory_location: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +93,21 @@ pub struct GlobalAgentRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalAgentsState {
     pub agents: Vec<GlobalAgentRecord>,
+    pub scan_root: String,
+    pub refreshed_at: Option<String>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalSkillRecord {
+    pub name: String,
+    pub directory_location: String,
+    pub trust_status: TrustStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalSkillsState {
+    pub skills: Vec<GlobalSkillRecord>,
     pub scan_root: String,
     pub refreshed_at: Option<String>,
     pub error_message: Option<String>,
@@ -103,12 +139,14 @@ pub struct InstalledPluginAgentRecord {
     pub name: String,
     pub file_location: String,
     pub description: Option<String>,
+    pub trust_status: TrustStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstalledSkillRecord {
     pub name: String,
     pub directory_location: String,
+    pub trust_status: TrustStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,6 +222,7 @@ impl AppState {
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
+            .or_else(|| Some("https://github.com/silvionetto/tupi.git".to_string()))
     }
 
     fn source_branch(&self) -> String {
@@ -200,6 +239,14 @@ impl AppState {
 
     fn default_global_agents_root(&self) -> PathBuf {
         Self::default_copilot_child_dir("agents")
+    }
+
+    fn resolve_global_skills_root(&self) -> Result<PathBuf> {
+        Self::resolve_copilot_child_dir("skills")
+    }
+
+    fn default_global_skills_root(&self) -> PathBuf {
+        Self::default_copilot_child_dir("skills")
     }
 
     fn resolve_installed_plugins_root(&self) -> Result<PathBuf> {

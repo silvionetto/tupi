@@ -87,11 +87,8 @@ impl AppState {
             .optional()?;
 
         let default_scan_root = self.default_global_agents_root();
-        let (scan_root, refreshed_at, error_message) = scan_state.unwrap_or((
-            default_scan_root.display().to_string(),
-            None,
-            None,
-        ));
+        let (scan_root, refreshed_at, error_message) =
+            scan_state.unwrap_or((default_scan_root.display().to_string(), None, None));
 
         Ok(GlobalAgentsState {
             agents,
@@ -425,7 +422,11 @@ agents:
 
         let global_agents_root = root.join("user-home").join(".copilot").join("agents");
         fs::create_dir_all(&global_agents_root).unwrap();
-        fs::write(global_agents_root.join("planner.agent.md"), trusted_contents).unwrap();
+        fs::write(
+            global_agents_root.join("planner.agent.md"),
+            trusted_contents,
+        )
+        .unwrap();
 
         let agents = state.collect_global_agents(&global_agents_root).unwrap();
 
@@ -515,7 +516,10 @@ agents:
         assert_eq!(stored.error_message, None);
         assert_eq!(stored.agents.len(), 1);
         assert_eq!(stored.agents[0].name, "copilot");
-        assert_eq!(stored.agents[0].description.as_deref(), Some("Local Copilot"));
+        assert_eq!(
+            stored.agents[0].description.as_deref(),
+            Some("Local Copilot")
+        );
         assert_eq!(stored.agents[0].trust_status, TrustStatus::Untrusted);
 
         fs::remove_dir_all(root).unwrap();

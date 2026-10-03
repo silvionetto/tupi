@@ -43,6 +43,19 @@ impl AppState {
                 error_message TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS global_skills (
+                directory_location TEXT PRIMARY KEY,
+                skill_name TEXT NOT NULL,
+                trust_status TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS global_skill_scan_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                scan_root TEXT NOT NULL,
+                refreshed_at TEXT,
+                error_message TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS installed_marketplaces (
                 directory_location TEXT PRIMARY KEY,
                 marketplace_id TEXT NOT NULL,
@@ -86,6 +99,22 @@ impl AppState {
                 description TEXT,
                 trust_status TEXT NOT NULL,
                 PRIMARY KEY (marketplace_id, agent_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS marketplace_skills (
+                marketplace_id TEXT NOT NULL,
+                plugin_name TEXT NOT NULL,
+                skill_name TEXT NOT NULL,
+                directory_location TEXT NOT NULL,
+                PRIMARY KEY (marketplace_id, plugin_name, skill_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS profile_asset_installs (
+                project_location TEXT NOT NULL,
+                asset_id TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                digest TEXT NOT NULL,
+                PRIMARY KEY (project_location, asset_id)
             );
             "#,
         )?;

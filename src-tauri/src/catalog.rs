@@ -65,13 +65,20 @@ pub fn summarize(catalog: &TrustedCatalog) -> CatalogSummary {
 
 pub fn validate_catalog(catalog: &TrustedCatalog) -> Result<()> {
     if catalog.version == 0 {
-        return Err(TupiError::CatalogValidation("catalog version must be positive".into()));
+        return Err(TupiError::CatalogValidation(
+            "catalog version must be positive".into(),
+        ));
     }
     if catalog.catalog_revision.trim().is_empty() {
-        return Err(TupiError::CatalogValidation("catalogRevision is required".into()));
+        return Err(TupiError::CatalogValidation(
+            "catalogRevision is required".into(),
+        ));
     }
 
-    validate_unique_ids("marketplace", catalog.marketplaces.iter().map(|m| m.id.as_str()))?;
+    validate_unique_ids(
+        "marketplace",
+        catalog.marketplaces.iter().map(|m| m.id.as_str()),
+    )?;
     for marketplace in &catalog.marketplaces {
         validate_identifier("marketplace.id", &marketplace.id)?;
         validate_non_empty("marketplace.name", &marketplace.name)?;
@@ -86,7 +93,8 @@ pub fn validate_catalog(catalog: &TrustedCatalog) -> Result<()> {
         Url::parse(&marketplace.repository)?;
     }
 
-    let marketplace_ids: HashSet<&str> = catalog.marketplaces.iter().map(|m| m.id.as_str()).collect();
+    let marketplace_ids: HashSet<&str> =
+        catalog.marketplaces.iter().map(|m| m.id.as_str()).collect();
     validate_asset_group("agent", &catalog.agents, &marketplace_ids)?;
     validate_asset_group("prompt", &catalog.prompts, &marketplace_ids)?;
     validate_asset_group("skill", &catalog.skills, &marketplace_ids)?;
@@ -102,7 +110,10 @@ where
     let mut seen = HashSet::new();
     for id in ids {
         if !seen.insert(id) {
-            return Err(TupiError::CatalogValidation(format!("duplicate {} id: {}", label, id)));
+            return Err(TupiError::CatalogValidation(format!(
+                "duplicate {} id: {}",
+                label, id
+            )));
         }
     }
     Ok(())
@@ -111,7 +122,9 @@ where
 fn validate_identifier(label: &str, value: &str) -> Result<()> {
     validate_non_empty(label, value)?;
     if value.contains(' ') {
-        return Err(TupiError::CatalogValidation(format!("{label} must not contain spaces")));
+        return Err(TupiError::CatalogValidation(format!(
+            "{label} must not contain spaces"
+        )));
     }
     Ok(())
 }
@@ -126,7 +139,9 @@ fn validate_non_empty(label: &str, value: &str) -> Result<()> {
 fn validate_revision(label: &str, value: &str) -> Result<()> {
     validate_non_empty(label, value)?;
     if value == "latest" {
-        return Err(TupiError::CatalogValidation(format!("{label} must be immutable")));
+        return Err(TupiError::CatalogValidation(format!(
+            "{label} must be immutable"
+        )));
     }
     Ok(())
 }
@@ -178,16 +193,28 @@ mod tests {
         let marketplace = &catalog.marketplaces[0];
         assert_eq!(marketplace.id, "awesome-copilot");
         assert_eq!(marketplace.name, "awesome-copilot");
-        assert_eq!(marketplace.repository, "https://github.com/github/awesome-copilot");
+        assert_eq!(
+            marketplace.repository,
+            "https://github.com/github/awesome-copilot"
+        );
         assert_eq!(marketplace.branch, "main");
-        assert_eq!(marketplace.revision, "4f4796f0bf30e105700f97ed8408c12b6aa95e06");
+        assert_eq!(
+            marketplace.revision,
+            "4f4796f0bf30e105700f97ed8408c12b6aa95e06"
+        );
 
         let marketplace = &catalog.marketplaces[1];
         assert_eq!(marketplace.id, "sn-copilot-plugin");
         assert_eq!(marketplace.name, "sn-copilot-plugin");
-        assert_eq!(marketplace.repository, "https://github.com/silvionetto/sn-copilot-plugin");
+        assert_eq!(
+            marketplace.repository,
+            "https://github.com/silvionetto/sn-copilot-plugin"
+        );
         assert_eq!(marketplace.branch, "main");
-        assert_eq!(marketplace.revision, "e9e69a334a3002f1b199d9b2cacc76dff249ef7b");
+        assert_eq!(
+            marketplace.revision,
+            "e9e69a334a3002f1b199d9b2cacc76dff249ef7b"
+        );
     }
 
     #[test]
