@@ -1,3 +1,9 @@
+## [1.7.1](https://github.com/silvionetto/tupi/compare/v1.7.0...v1.7.1) (2026-10-03)
+
+### Bug Fixes
+
+* **catalog:** distinguish direct plugin installs ([222925d](https://github.com/silvionetto/tupi/commit/222925d08ec22495bb76edd71bd22745d21773c4))
+
 ## [1.7.0](https://github.com/silvionetto/tupi/compare/v1.6.0...v1.7.0) (2026-10-03)
 
 ### Features
