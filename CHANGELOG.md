@@ -1,3 +1,9 @@
+## [1.7.0](https://github.com/silvionetto/tupi/compare/v1.6.0...v1.7.0) (2026-10-03)
+
+### Features
+
+* **ui:** manage global agents and skills ([7ba85df](https://github.com/silvionetto/tupi/commit/7ba85dfecdf068d17a8117d8a65a103f30bd80b9))
+
 ## [1.6.0](https://github.com/silvionetto/tupi/compare/v1.5.0...v1.6.0) (2026-09-26)
 
 ### Features
