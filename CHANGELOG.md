@@ -1,3 +1,9 @@
+## [1.8.0](https://github.com/silvionetto/tupi/compare/v1.7.1...v1.8.0) (2026-10-04)
+
+### Features
+
+* **profiles:** add trusted agent picker ([8fffe66](https://github.com/silvionetto/tupi/commit/8fffe66b57bb07a03a3c2c82aa0766330a1a74e6))
+
 ## [1.7.1](https://github.com/silvionetto/tupi/compare/v1.7.0...v1.7.1) (2026-10-03)
 
 ### Bug Fixes
