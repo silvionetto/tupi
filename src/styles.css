@@ -372,6 +372,135 @@ dd {
   margin-top: 1.5rem;
 }
 
+.profiles-heading,
+.profile-agent-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.profiles-heading h2,
+.profile-master h3,
+.profile-detail h3,
+.profile-agent-heading h3 {
+  margin-top: 0;
+}
+
+.profile-master-detail {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(0, 2fr);
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.profile-master,
+.profile-detail {
+  min-width: 0;
+}
+
+.profile-master-list,
+.profile-agent-marketplace ul {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-master-list > li {
+  position: relative;
+  display: flex;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.profile-master-item {
+  display: grid;
+  flex: 1;
+  gap: 0.35rem;
+  min-width: 0;
+  text-align: left;
+  background: rgba(2, 6, 23, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.profile-master-item.active {
+  background: rgba(37, 99, 235, 0.22);
+  border-color: #3b82f6;
+}
+
+.profile-master-item span,
+.profile-master-item small {
+  overflow-wrap: anywhere;
+  color: #94a3b8;
+}
+
+.profile-delete {
+  padding-inline: 0.65rem;
+  background: rgba(127, 29, 29, 0.65);
+}
+
+.profile-detail {
+  padding-left: 1.25rem;
+  border-left: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.profile-agent-picker {
+  margin-top: 1.5rem;
+}
+
+.profile-agent-heading {
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.profile-agent-heading label {
+  width: min(100%, 280px);
+  flex: 0 0 auto;
+}
+
+.profile-agent-marketplaces {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.profile-agent-marketplace {
+  padding: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.24);
+}
+
+.profile-agent-marketplace > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.profile-agent-marketplace code {
+  color: #7dd3fc;
+}
+
+.profile-agent-marketplace li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.profile-agent-marketplace li > div {
+  min-width: 0;
+}
+
+.profile-agent-marketplace li p {
+  margin: 0.25rem 0 0;
+  color: #94a3b8;
+}
+
 .marketplace-card,
 .agent-card,
 .profile-card {
@@ -398,6 +527,19 @@ dd {
   margin: 0.5rem 0 0;
   font-size: 0.9rem;
   color: #94a3b8;
+}
+
+@media (max-width: 760px) {
+  .profile-master-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-detail {
+    padding-top: 1rem;
+    padding-left: 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    border-left: 0;
+  }
 }
 
 .marketplace-repository {
@@ -593,6 +735,27 @@ dd {
 }
 
 @media (max-width: 560px) {
+  .profiles-heading,
+  .profile-agent-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-agent-heading label {
+    width: 100%;
+  }
+
+  .profile-detail {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .profile-agent-marketplace > header,
+  .profile-agent-marketplace li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .global-asset-card {
     align-items: flex-start;
     flex-direction: column;
